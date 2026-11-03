@@ -1,6 +1,20 @@
 # Bottleneck dummy 검증
 
+ResNet bottleneck 두 개를 single-MAC 동작 모델로 검증하는 학습용 시뮬레이션입니다.
+MAC, ReLU, pooling, residual, GAP의 외부 인터페이스는 ready/valid handshake로 동작하고,
+내부 계산은 task로 수행합니다. 데이터 형식은 signed 16bit Q7.8입니다.
+이 문서와 실행 보조 파일, 로그, 파형은 `AI_workspace`에 모았습니다.
+아래 경로는 별도 설명이 없으면 프로젝트 루트 기준입니다.
+
 ## 실행
+
+### 준비 사항
+
+- Windows와 Windows PowerShell.
+- Vivado Simulator: 현재 PC의 Vivado 2025.2로 검증했습니다.
+- `python` 명령과 numpy. numpy가 없다면 `python -m pip install numpy`로 설치합니다.
+
+### 빠른 실행
 
 Windows 탐색기에서는 `bottleneck/bench/tb_core/run_sim.bat`를 더블클릭하면 됩니다.
 완료 후 창이 유지되므로 PASS/FAIL을 확인할 수 있습니다. 상세 SNR은 로그에 저장합니다.
@@ -13,11 +27,32 @@ GUI는 `bottleneck/bench/tb_core/tb_core.wcfg`가 있으면 그 파형 설정을
 설정 적용 후 다시 실행하며, `$finish` 후에도 창을 유지합니다.
 
 ```bat
-run_sim.bat                         rem dummy 검증
-run_sim.bat --gui                   rem dummy 검증 후 GUI
-run_sim.bat --rtl                   rem rtl 폴더로 검증
-run_sim.bat --rtl --gui --nopause    rem rtl 검증 후 GUI, 콘솔 대기 없음
+run_sim.bat
+run_sim.bat --gui
+run_sim.bat --rtl
+run_sim.bat --rtl --gui --nopause
 ```
+
+위 명령은 `bottleneck/bench/tb_core` 폴더의 CMD에서 실행합니다.
+PowerShell에서는 `run_sim.bat` 대신 `.\run_sim.bat`로 실행합니다.
+프로젝트 루트의 PowerShell에서 GUI를 열려면 다음 명령을 사용합니다.
+
+```powershell
+.\bottleneck\bench\tb_core\run_sim.bat --gui
+```
+
+| 옵션 | 동작 |
+|---|---|
+| 옵션 없음 | `rtl_dummy`로 자동 검증하고 콘솔 창 유지 |
+| `--rtl` | `bottleneck/rtl`의 `.v`, `.sv` 사용 |
+| `--gui` | 자동 검증 통과 후 XSim GUI 실행 |
+| `--nopause` 또는 `/nopause` | 배치 종료 시 키 입력 대기 생략 |
+
+`--gui`에서는 GUI만 실행하는 것이 아니라 레퍼런스 생성, 컴파일, 시뮬레이션, Python 비교를 먼저 수행합니다.
+이 단계가 실패하면 GUI를 열지 않습니다. GUI가 열린 뒤에는 파형을 확인하고 창을 직접 닫으면 됩니다.
+사용할 파형 구성은 GUI에서 `bottleneck/bench/tb_core/tb_core.wcfg`로 저장해 두면 다음 실행부터 적용됩니다.
+
+### 로그와 결과 확인
 
 모든 실행 단계의 표준 출력과 오류는 `AI_workspace/run/logs/*.log`에 저장합니다.
 `run.log`는 실행 요약, `reference.log`는 레퍼런스 생성, `compile.log`/`elaborate.log`는 컴파일,
@@ -38,6 +73,97 @@ Python과 numpy는 설치되어 있어야 합니다.
 스크립트가 작업 디렉터리를 `AI_workspace/run`으로 옮기므로 모든 시뮬레이터 산출물이 그 안에 저장됩니다.
 기존 bench의 빈 `input.txt`, `kernel.txt`, `output.txt`는 요청대로 채우며, 나머지 새 파일은 모두 `AI_workspace` 아래에 둡니다.
 RTL은 기존 `.v` 파일에 작성했지만 TB의 배열·문자열 task 때문에 SystemVerilog 모드(`xvlog -sv`)로 컴파일합니다.
+
+성공 여부는 콘솔의 `PASS`, `run/logs/xsim.log`의 `ALL TESTS PASSED`,
+`run/logs/verify.log`의 단계별 정확 일치 및 SNR로 확인합니다. 여기서 `run/`은 이 문서가 있는 `AI_workspace/run/`입니다.
+
+## 대략적인 블록다이어그램
+
+### 검증 실행 흐름
+
+```mermaid
+flowchart TD
+    BAT["run_sim.bat"] --> PS["AI_workspace/run.ps1"]
+    PS --> PY["Python: 임의 입력과 가중치 생성\n실수 모델 + Q7.8 정수 모델"]
+    PY --> TXT["bench/data: input, kernel, output.txt\nAI_workspace/data: 중간 레퍼런스"]
+    TXT --> SIM["Vivado: compile → elaborate → XSim\ntb_core에서 두 bottleneck 실행"]
+    SIM --> ACT["실제 HDL 중간/최종 출력 파일"]
+    ACT --> CHECK["Python: 정수값 정확 비교\n실수 기준 SNR 계산"]
+    CHECK --> LOG[".log + results.json"]
+    CHECK --> GUI{"--gui 사용?"}
+    GUI -->|예| WCFG["tb_core.wcfg 있으면 적용\n없으면 기본 파형"]
+    WCFG --> VIEW["XSim GUI에서 재실행 및 파형 확인"]
+```
+
+### 실제 TB와 dummy 연결
+
+아래 MAC, ReLU 등은 각각 하나의 인스턴스입니다. TB가 레이어별로 재사용합니다.
+모듈 사이를 직접 고정 배선으로 이어 둔 파이프라인 대신, TB 메모리가 중간 결과를 보관하고 다음 연산으로 전달합니다.
+화살표는 데이터 전달이며 ready 신호는 반대 방향으로 전달됩니다.
+
+```mermaid
+flowchart LR
+    FILE["input.txt / kernel.txt"] --> MEM
+    subgraph TB["tb_core: 메모리 및 실행 제어"]
+        MEM["feature / skip / weights 메모리"]
+        SEND["송신 task\nMAC operand 배치\nzero padding / pooling window"]
+        RECV["독립 수신 감시기\nout_valid AND out_ready\ncaptured 메모리에 저장"]
+        NEXT["레이어 완료 개수 확인\n레퍼런스 비교 / 다음 feature 준비"]
+        MEM --> SEND
+        RECV --> NEXT --> MEM
+    end
+    SEND -->|"in_valid / in_ready"| MAC["MAC ×1"]
+    SEND --> RELU["ReLU ×1"]
+    SEND --> POOL["Max Pool ×1"]
+    SEND --> RES["Residual Add ×1"]
+    SEND --> GAP["GAP ×1"]
+    MAC -->|"out_valid / out_ready"| RECV
+    RELU --> RECV
+    POOL --> RECV
+    RES --> RECV
+    GAP --> RECV
+```
+
+Mermaid를 지원하지 않는 뷰어에서는 다음과 같이 이해하면 됩니다.
+
+```text
+input/kernel.txt
+       |
+       v
++----------------------- tb_core ------------------------+
+| feature / skip / weights                               |
+|       |                                                |
+|       v                                                |
+| 송신 task --valid/ready--> [MAC / ReLU / Pool / Add / GAP]|
+|                                  |                     |
+|                                  v valid/ready         |
+| 다음 레이어 feature <-- 완료 확인 <-- 수신 감시기          |
++--------------------------------------------------------+
+                                   |
+                            actual.txt → Python 비교
+```
+
+### bottleneck의 논리 연산 순서
+
+다음 그림의 Conv 세 개는 물리적으로 MAC 세 개가 아니라, 같은 MAC을 세 레이어에 걸쳐 재사용하는 순서입니다.
+
+```mermaid
+flowchart LR
+    X["Input: H×W×8"] --> C1["Conv1 1×1\n8→2"]
+    C1 --> R1[ReLU] --> C2["Conv2 3×3, pad1\n2→2"]
+    C2 --> R2[ReLU] --> C3["Conv3 1×1\n2→8"]
+    X --> SKIP["TB skip 메모리"]
+    C3 --> ADD["Residual Add"]
+    SKIP --> ADD
+    ADD --> R3[ReLU] --> P{"case1?"}
+    P -->|예| MAX["Max Pool 2×2, stride2"]
+    P -->|아니오| OUT["Output feature\noutput.txt 비교 대상"]
+    MAX --> OUT
+    OUT --> AVG["Global Average Pool\n채널별 평균 8개"]
+```
+
+MAC은 activation과 weight를 한 쌍씩 받아 곱셈·누산합니다. 입력 채널이나 출력 필터 병렬화는 없습니다.
+논문의 블록 구성을 참고한 기능 검증 모델이며, 실제 core의 처리 지연·처리량이나 논문의 병렬 하드웨어를 재현하지는 않습니다.
 
 ## 두 입력 구성
 
