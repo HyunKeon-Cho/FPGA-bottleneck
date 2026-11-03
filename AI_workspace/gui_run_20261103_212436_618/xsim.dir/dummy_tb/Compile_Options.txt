@@ -1,0 +1,1 @@
+"tb_core" -s "dummy_tb" -debug "typical" 

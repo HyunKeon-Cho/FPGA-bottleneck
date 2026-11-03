@@ -1,0 +1,11 @@
+0.7
+2020.2
+Nov 14 2025
+19:37:27
+C:/Users/zlak0/Desktop/FPGA-bottleneck/AI_workspace/fixed_math.vh,1793706807,verilog,,,,,,,,,,,,
+C:/Users/zlak0/Desktop/FPGA-bottleneck/bottleneck/bench/tb_core/tb_core.v,1793707301,systemVerilog,,,,tb_core,,,C:\Users\zlak0\Desktop\FPGA-bottleneck\AI_workspace;C:\Users\zlak0\Desktop\FPGA-bottleneck\bottleneck\rtl_dummy,,,,,
+C:/Users/zlak0/Desktop/FPGA-bottleneck/bottleneck/rtl_dummy/general_average_pooling.v,1793707313,systemVerilog,,C:/Users/zlak0/Desktop/FPGA-bottleneck/bottleneck/rtl_dummy/mac.v,C:/Users/zlak0/Desktop/FPGA-bottleneck/AI_workspace/fixed_math.vh,general_average_pooling,,,C:\Users\zlak0\Desktop\FPGA-bottleneck\AI_workspace;C:\Users\zlak0\Desktop\FPGA-bottleneck\bottleneck\rtl_dummy,,,,,
+C:/Users/zlak0/Desktop/FPGA-bottleneck/bottleneck/rtl_dummy/mac.v,1793707479,systemVerilog,,C:/Users/zlak0/Desktop/FPGA-bottleneck/bottleneck/rtl_dummy/pooling.v,C:/Users/zlak0/Desktop/FPGA-bottleneck/AI_workspace/fixed_math.vh,mac,,,C:\Users\zlak0\Desktop\FPGA-bottleneck\AI_workspace;C:\Users\zlak0\Desktop\FPGA-bottleneck\bottleneck\rtl_dummy,,,,,
+C:/Users/zlak0/Desktop/FPGA-bottleneck/bottleneck/rtl_dummy/pooling.v,1793707313,systemVerilog,,C:/Users/zlak0/Desktop/FPGA-bottleneck/bottleneck/rtl_dummy/relu.v,C:/Users/zlak0/Desktop/FPGA-bottleneck/AI_workspace/fixed_math.vh,pooling,,,C:\Users\zlak0\Desktop\FPGA-bottleneck\AI_workspace;C:\Users\zlak0\Desktop\FPGA-bottleneck\bottleneck\rtl_dummy,,,,,
+C:/Users/zlak0/Desktop/FPGA-bottleneck/bottleneck/rtl_dummy/relu.v,1793707313,systemVerilog,,C:/Users/zlak0/Desktop/FPGA-bottleneck/bottleneck/rtl_dummy/residual.v,C:/Users/zlak0/Desktop/FPGA-bottleneck/AI_workspace/fixed_math.vh,relu,,,C:\Users\zlak0\Desktop\FPGA-bottleneck\AI_workspace;C:\Users\zlak0\Desktop\FPGA-bottleneck\bottleneck\rtl_dummy,,,,,
+C:/Users/zlak0/Desktop/FPGA-bottleneck/bottleneck/rtl_dummy/residual.v,1793707313,systemVerilog,,C:/Users/zlak0/Desktop/FPGA-bottleneck/bottleneck/bench/tb_core/tb_core.v,C:/Users/zlak0/Desktop/FPGA-bottleneck/AI_workspace/fixed_math.vh,residual,,,C:\Users\zlak0\Desktop\FPGA-bottleneck\AI_workspace;C:\Users\zlak0\Desktop\FPGA-bottleneck\bottleneck\rtl_dummy,,,,,

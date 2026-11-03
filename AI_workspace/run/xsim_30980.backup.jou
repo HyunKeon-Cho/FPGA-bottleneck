@@ -1,0 +1,25 @@
+#-----------------------------------------------------------
+# xsim v2025.2 (64-bit)
+# SW Build 6299465 on Fri Nov 14 19:35:11 GMT 2025
+# IP Build 6300035 on Fri Nov 14 10:48:45 MST 2025
+# SharedData Build 6298862 on Thu Nov 13 04:50:51 MST 2025
+# Start of session at: Tue Nov  3 21:22:29 2026
+# Process ID         : 30980
+# Current directory  : C:/Users/zlak0/Desktop/FPGA-bottleneck/AI_workspace/run
+# Command line       : xsim.exe -log C:\Users\zlak0\Desktop\FPGA-bottleneck\AI_workspace\run\logs\xsim.log -mode tcl -source {xsim.dir/dummy_tb/xsim_script.tcl}
+# Log file           : C:/Users/zlak0/Desktop/FPGA-bottleneck/AI_workspace/run/logs/xsim.log
+# Journal file       : C:/Users/zlak0/Desktop/FPGA-bottleneck/AI_workspace/run\xsim.jou
+# Running On         : CHOHK
+# Platform           : Windows Server 2016 or Windows 10
+# Operating System   : 26200
+# Processor Detail   : Intel(R) Core(TM) i5-14600KF
+# CPU Frequency      : 3494 MHz
+# CPU Physical cores : 14
+# CPU Logical cores  : 20
+# Host memory        : 34191 MB
+# Swap memory        : 2147 MB
+# Total Virtual      : 36339 MB
+# Available Virtual  : 12944 MB
+#-----------------------------------------------------------
+source xsim.dir/dummy_tb/xsim_script.tcl
+run -all

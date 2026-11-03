@@ -1,0 +1,154 @@
+[
+  {
+    "case": 0,
+    "stage": "conv1",
+    "samples": 32,
+    "bit_mismatches": 0,
+    "snr_db": 50.4068081248254,
+    "max_abs_error": 0.007443852498750347
+  },
+  {
+    "case": 0,
+    "stage": "relu1",
+    "samples": 32,
+    "bit_mismatches": 0,
+    "snr_db": 50.222612400833924,
+    "max_abs_error": 0.006112864454710598
+  },
+  {
+    "case": 0,
+    "stage": "conv2",
+    "samples": 32,
+    "bit_mismatches": 0,
+    "snr_db": 43.45071669726363,
+    "max_abs_error": 0.007734908928917317
+  },
+  {
+    "case": 0,
+    "stage": "relu2",
+    "samples": 32,
+    "bit_mismatches": 0,
+    "snr_db": 43.571474520752915,
+    "max_abs_error": 0.007734908928917317
+  },
+  {
+    "case": 0,
+    "stage": "conv3",
+    "samples": 128,
+    "bit_mismatches": 0,
+    "snr_db": 41.16322397091143,
+    "max_abs_error": 0.00717931870723465
+  },
+  {
+    "case": 0,
+    "stage": "residual",
+    "samples": 128,
+    "bit_mismatches": 0,
+    "snr_db": 51.27886167193199,
+    "max_abs_error": 0.008356522899843455
+  },
+  {
+    "case": 0,
+    "stage": "relu3",
+    "samples": 128,
+    "bit_mismatches": 0,
+    "snr_db": 50.031953739136995,
+    "max_abs_error": 0.008356522899843455
+  },
+  {
+    "case": 0,
+    "stage": "output",
+    "samples": 128,
+    "bit_mismatches": 0,
+    "snr_db": 50.031953739136995,
+    "max_abs_error": 0.008356522899843455
+  },
+  {
+    "case": 0,
+    "stage": "gap",
+    "samples": 8,
+    "bit_mismatches": 0,
+    "snr_db": 49.558594436830106,
+    "max_abs_error": 0.0020323494215793714
+  },
+  {
+    "case": 1,
+    "stage": "conv1",
+    "samples": 72,
+    "bit_mismatches": 0,
+    "snr_db": 50.709032899043436,
+    "max_abs_error": 0.006458326113484514
+  },
+  {
+    "case": 1,
+    "stage": "relu1",
+    "samples": 72,
+    "bit_mismatches": 0,
+    "snr_db": 49.51751614046298,
+    "max_abs_error": 0.006458326113484514
+  },
+  {
+    "case": 1,
+    "stage": "conv2",
+    "samples": 72,
+    "bit_mismatches": 0,
+    "snr_db": 46.49942720549884,
+    "max_abs_error": 0.00984796532224741
+  },
+  {
+    "case": 1,
+    "stage": "relu2",
+    "samples": 72,
+    "bit_mismatches": 0,
+    "snr_db": 44.625674467519076,
+    "max_abs_error": 0.0076450595225728835
+  },
+  {
+    "case": 1,
+    "stage": "conv3",
+    "samples": 288,
+    "bit_mismatches": 0,
+    "snr_db": 43.473661302223945,
+    "max_abs_error": 0.005393376286194296
+  },
+  {
+    "case": 1,
+    "stage": "residual",
+    "samples": 288,
+    "bit_mismatches": 0,
+    "snr_db": 54.50039713104725,
+    "max_abs_error": 0.005684315120401129
+  },
+  {
+    "case": 1,
+    "stage": "relu3",
+    "samples": 288,
+    "bit_mismatches": 0,
+    "snr_db": 56.02775652274684,
+    "max_abs_error": 0.004635699305842511
+  },
+  {
+    "case": 1,
+    "stage": "pool",
+    "samples": 72,
+    "bit_mismatches": 0,
+    "snr_db": 57.70322096767892,
+    "max_abs_error": 0.00370449315247412
+  },
+  {
+    "case": 1,
+    "stage": "output",
+    "samples": 72,
+    "bit_mismatches": 0,
+    "snr_db": 57.70322096767892,
+    "max_abs_error": 0.00370449315247412
+  },
+  {
+    "case": 1,
+    "stage": "gap",
+    "samples": 8,
+    "bit_mismatches": 0,
+    "snr_db": 59.146069010637056,
+    "max_abs_error": 0.001931213861904424
+  }
+]

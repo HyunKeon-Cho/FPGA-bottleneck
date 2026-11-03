@@ -1,0 +1,234 @@
+`timescale 1ns/1ps
+module tb_core;
+    reg clk=0, nrst=0;
+    always #5 clk=~clk;
+    reg [4:0] iv=0, il=0, ordy=0;
+    wire [4:0] ir, ov;
+    reg signed [15:0] idata [0:4];
+    wire signed [15:0] odata [0:4];
+    reg iteration=0;
+    mac m(clk,nrst,iteration,iv[0],ir[0],idata[0],il[0],ov[0],ordy[0],odata[0]);
+    relu r(clk,nrst,iv[1],ir[1],idata[1],il[1],ov[1],ordy[1],odata[1]);
+    pooling p(clk,nrst,iv[2],ir[2],idata[2],il[2],ov[2],ordy[2],odata[2]);
+    residual s(clk,nrst,iv[3],ir[3],idata[3],il[3],ov[3],ordy[3],odata[3]);
+    general_average_pooling g(clk,nrst,iv[4],ir[4],idata[4],il[4],ov[4],ordy[4],odata[4]);
+
+    // TB owns memories and arrangement. Modules only see their streaming ports.
+    reg signed [15:0] inputs [0:415], weights [0:135], outputs [0:199];
+    reg signed [15:0] feature [0:1023], skip [0:1023];
+    reg signed [15:0] captured [0:4][0:1023], expected [0:1023];
+    integer received [0:4], sent [0:4], stalled [0:4], input_wait [0:4];
+    reg [4:0] was_stalled=0;
+    reg signed [15:0] held [0:4];
+    integer cycle=0, monitor_index, ready_index, case_id, h, input_offset, kernel_offset;
+    integer i,j,k,fh,fw,n,fd,seed;
+    reg random_mode=1;
+    reg [31:0] random_state=32'h5eed1234;
+    // Reproducible pseudo-random stalls, including stretches of backpressure.
+    always @(negedge clk) begin
+        if (!nrst) ordy=0;
+        else if (random_mode) begin
+            random_state = (random_state >> 1) ^ (32'hd0000001 & {32{random_state[0]}});
+            for (ready_index=0;ready_index<5;ready_index=ready_index+1)
+                ordy[ready_index]=(cycle%19 >= 6) && random_state[ready_index];
+        end
+    end
+    always @(posedge clk) begin
+        if (!nrst) begin
+            cycle <= 0; was_stalled <= 0;
+            for (monitor_index=0;monitor_index<5;monitor_index=monitor_index+1) begin
+                received[monitor_index] <= 0; sent[monitor_index] <= 0;
+                stalled[monitor_index] <= 0; input_wait[monitor_index] <= 0;
+            end
+        end else begin
+            cycle <= cycle+1;
+            for (monitor_index=0;monitor_index<5;monitor_index=monitor_index+1) begin
+                if (was_stalled[monitor_index] &&
+                    (!ov[monitor_index] || odata[monitor_index] !== held[monitor_index]))
+                    $fatal(1,"Output changed under backpressure, unit %0d",monitor_index);
+                was_stalled[monitor_index] <= ov[monitor_index] && !ordy[monitor_index];
+                held[monitor_index] <= odata[monitor_index];
+                if (iv[monitor_index] && ir[monitor_index]) sent[monitor_index] <= sent[monitor_index]+1;
+                if (iv[monitor_index] && !ir[monitor_index]) input_wait[monitor_index] <= input_wait[monitor_index]+1;
+                if (ov[monitor_index] && !ordy[monitor_index]) stalled[monitor_index] <= stalled[monitor_index]+1;
+                if (ov[monitor_index] && ordy[monitor_index]) begin
+                    captured[monitor_index][received[monitor_index]] <= odata[monitor_index];
+                    received[monitor_index] <= received[monitor_index]+1;
+                end
+            end
+        end
+    end
+
+    task automatic send_word(input integer unit_id,input signed [15:0] value,input last,input phase);
+        begin
+            // Drive on falling edge; retain all fields until a rising-edge transfer.
+            @(negedge clk);
+            if ((cycle+unit_id)%7==0) @(negedge clk);
+            iv[unit_id]=1; idata[unit_id]=value; il[unit_id]=last;
+            if (unit_id==0) iteration=phase;
+            @(posedge clk);
+            while (!ir[unit_id]) @(posedge clk);
+            @(negedge clk); iv[unit_id]=0; il[unit_id]=0;
+        end
+    endtask
+    task automatic await_count(input integer unit_id,input integer target);
+        begin
+            @(negedge clk);
+            while (received[unit_id]<target) @(negedge clk);
+            if (received[unit_id]!=target) $fatal(1,"Unexpected output count");
+        end
+    endtask
+    task automatic check_one(input integer unit_id,input integer index,input signed [15:0] value);
+        begin
+            await_count(unit_id,index+1);
+            if (captured[unit_id][index] !== value)
+                $fatal(1,"Directed unit=%0d got=%0d expected=%0d",unit_id,$signed(captured[unit_id][index]),value);
+        end
+    endtask
+    task automatic check_stage(input integer unit_id,input integer start,input integer size,input string stage_name);
+        integer t,file_id;
+        string path;
+        begin
+            await_count(unit_id,start+size);
+            path=$sformatf("../data/case%0d_%s.txt",case_id,stage_name);
+            $readmemh(path,expected,0,size-1);
+            file_id=$fopen($sformatf("case%0d_%s_actual.txt",case_id,stage_name),"w");
+            for(t=0;t<size;t=t+1) begin
+                if(captured[unit_id][start+t] !== expected[t])
+                    $fatal(1,"case%0d %s index=%0d actual=%0d ref=%0d",case_id,stage_name,t,
+                           $signed(captured[unit_id][start+t]),$signed(expected[t]));
+                feature[t]=captured[unit_id][start+t];
+                $fdisplay(file_id,"%04h",feature[t]);
+            end
+            $fclose(file_id);
+            $display("PASS case%0d %s (%0d values)",case_id,stage_name,size);
+        end
+    endtask
+
+    // NHWC source -> [output y,x,channel][kernel y,x,input channel] dot streams.
+    // Weight layout is O,KY,KX,I. Padding is inserted here, outside MAC.
+    task automatic convolution(input integer cin,input integer cout,input integer ks,
+                               input integer weight_base,input string name);
+        integer y,x,oc,ky,kx,ic,iy,ix,base;
+        reg signed [15:0] activation;
+        begin
+            base=received[0];
+            for(y=0;y<h;y=y+1) for(x=0;x<h;x=x+1) for(oc=0;oc<cout;oc=oc+1)
+                for(ky=0;ky<ks;ky=ky+1) for(kx=0;kx<ks;kx=kx+1) for(ic=0;ic<cin;ic=ic+1) begin
+                    iy=y+ky-ks/2; ix=x+kx-ks/2;
+                    activation=0;
+                    if(iy>=0 && iy<h && ix>=0 && ix<h) activation=feature[(iy*h+ix)*cin+ic];
+                    send_word(0,activation,0,0);
+                    send_word(0,weights[weight_base+((oc*ks+ky)*ks+kx)*cin+ic],
+                              ky==ks-1 && kx==ks-1 && ic==cin-1,1);
+                end
+            check_stage(0,base,h*h*cout,name);
+        end
+    endtask
+    task automatic activate(input integer size,input string name);
+        integer t,base;
+        begin
+            base=received[1];
+            for(t=0;t<size;t=t+1) send_word(1,feature[t],t==size-1,0);
+            check_stage(1,base,size,name);
+        end
+    endtask
+    task automatic add_skip;
+        integer t,base;
+        begin
+            base=received[3];
+            for(t=0;t<h*h*8;t=t+1) begin
+                send_word(3,feature[t],0,0); send_word(3,skip[t],1,0);
+            end
+            check_stage(3,base,h*h*8,"residual");
+        end
+    endtask
+    task automatic max_pool;
+        integer y,x,c,dy,dx,base;
+        begin
+            base=received[2];
+            for(y=0;y<h;y=y+2) for(x=0;x<h;x=x+2) for(c=0;c<8;c=c+1)
+                for(dy=0;dy<2;dy=dy+1) for(dx=0;dx<2;dx=dx+1)
+                    send_word(2,feature[((y+dy)*h+x+dx)*8+c],dy==1 && dx==1,0);
+            check_stage(2,base,(h/2)*(h/2)*8,"pool");
+        end
+    endtask
+    task automatic global_average(input integer spatial_size);
+        integer c,t,base;
+        begin
+            base=received[4];
+            for(c=0;c<8;c=c+1) for(t=0;t<spatial_size;t=t+1)
+                send_word(4,feature[t*8+c],t==spatial_size-1,0);
+            check_stage(4,base,8,"gap");
+        end
+    endtask
+    task automatic reset_all;
+        begin
+            @(negedge clk); nrst=0; iv=0; il=0;
+            repeat(3) @(negedge clk);
+            nrst=1;
+        end
+    endtask
+    initial begin
+        // Global watchdog catches deadlock without burying the learning TB in exceptions.
+        #20000000; $fatal(1,"Handshake timeout");
+    end
+    initial begin
+        for(i=0;i<5;i=i+1) idata[i]=0;
+        reset_all();
+        // Reset while MAC/GAP/pool/residual hold partial work and ReLU holds an output.
+        random_mode=0; ordy=0;
+        send_word(0,1000,0,0); send_word(0,2000,0,1);
+        send_word(2,-100,0,0); send_word(3,100,0,0); send_word(4,100,0,0);
+        send_word(1,123,0,0);
+        reset_all(); random_mode=1;
+        // Directed signed arithmetic: both saturation signs, tie rounding, max of negatives.
+        send_word(0,32767,0,0); send_word(0,32767,1,1); check_one(0,0,32767);
+        send_word(0,-32768,0,0); send_word(0,32767,1,1); check_one(0,1,-32768);
+        send_word(0,1,0,0); send_word(0,128,1,1); check_one(0,2,1);
+        send_word(0,-1,0,0); send_word(0,128,1,1); check_one(0,3,-1);
+        send_word(1,-32768,0,0); check_one(1,0,0);
+        send_word(1,32767,1,0); check_one(1,1,32767);
+        send_word(2,-50,0,0); send_word(2,-200,0,0); send_word(2,-2,0,0); send_word(2,-8,1,0);
+        check_one(2,0,-2);
+        send_word(3,32767,0,0); send_word(3,256,1,0); check_one(3,0,32767);
+        send_word(3,-32768,0,0); send_word(3,-256,1,0); check_one(3,1,-32768);
+        send_word(4,-1,0,0); send_word(4,0,1,0); check_one(4,0,-1);
+        send_word(4,1,0,0); send_word(4,0,1,0); check_one(4,1,1);
+        $display("PASS directed arithmetic and reset-in-flight");
+        reset_all();
+        $readmemh("../../bottleneck/bench/tb_core/data/input.txt",inputs);
+        $readmemh("../../bottleneck/bench/tb_core/data/kernel.txt",weights);
+        $readmemh("../../bottleneck/bench/tb_core/data/output.txt",outputs);
+        input_offset=0;
+        for(case_id=0;case_id<2;case_id=case_id+1) begin
+            h=case_id==0 ? 4 : 6;
+            kernel_offset=case_id*68;
+            for(i=0;i<h*h*8;i=i+1) begin
+                feature[i]=inputs[input_offset+i]; skip[i]=feature[i];
+            end
+            convolution(8,2,1,kernel_offset,"conv1"); activate(h*h*2,"relu1");
+            convolution(2,2,3,kernel_offset+16,"conv2"); activate(h*h*2,"relu2");
+            convolution(2,8,1,kernel_offset+52,"conv3"); add_skip(); activate(h*h*8,"relu3");
+            if(case_id==1) max_pool();
+            n=case_id==0 ? h*h*8 : (h/2)*(h/2)*8;
+            fd=$fopen($sformatf("case%0d_output_actual.txt",case_id),"w");
+            for(i=0;i<n;i=i+1) begin
+                if(feature[i] !== outputs[(case_id==0 ? 0 : 128)+i]) $fatal(1,"Bench output mismatch");
+                $fdisplay(fd,"%04h",feature[i]);
+            end
+            $fclose(fd);
+            global_average(n/8);
+            input_offset=input_offset+h*h*8;
+        end
+        repeat(30) @(negedge clk);
+        // Exactly one result per dot/window/pair/channel, and one per ReLU input.
+        if(received[0]!=624 || received[1]!=624 || received[2]!=72 || received[3]!=416 || received[4]!=16)
+            $fatal(1,"Final output count mismatch");
+        for(i=0;i<5;i=i+1) begin
+            $display("HANDSHAKE unit=%0d in=%0d out=%0d output_stall=%0d input_wait=%0d",i,sent[i],received[i],stalled[i],input_wait[i]);
+            if(stalled[i]==0 || input_wait[i]==0) $fatal(1,"Backpressure not exercised");
+        end
+        $display("ALL TESTS PASSED"); $finish;
+    end
+endmodule

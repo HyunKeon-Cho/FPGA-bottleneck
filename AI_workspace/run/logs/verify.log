@@ -1,0 +1,23 @@
+﻿=== stdout ===
+case0 conv1    : 50.41 dB, 32 samples, exact Q7.8 match
+case0 relu1    : 50.22 dB, 32 samples, exact Q7.8 match
+case0 conv2    : 43.45 dB, 32 samples, exact Q7.8 match
+case0 relu2    : 43.57 dB, 32 samples, exact Q7.8 match
+case0 conv3    : 41.16 dB, 128 samples, exact Q7.8 match
+case0 residual : 51.28 dB, 128 samples, exact Q7.8 match
+case0 relu3    : 50.03 dB, 128 samples, exact Q7.8 match
+case0 output   : 50.03 dB, 128 samples, exact Q7.8 match
+case0 gap      : 49.56 dB, 8 samples, exact Q7.8 match
+case1 conv1    : 50.71 dB, 72 samples, exact Q7.8 match
+case1 relu1    : 49.52 dB, 72 samples, exact Q7.8 match
+case1 conv2    : 46.50 dB, 72 samples, exact Q7.8 match
+case1 relu2    : 44.63 dB, 72 samples, exact Q7.8 match
+case1 conv3    : 43.47 dB, 288 samples, exact Q7.8 match
+case1 residual : 54.50 dB, 288 samples, exact Q7.8 match
+case1 relu3    : 56.03 dB, 288 samples, exact Q7.8 match
+case1 pool     : 57.70 dB, 72 samples, exact Q7.8 match
+case1 output   : 57.70 dB, 72 samples, exact Q7.8 match
+case1 gap      : 59.15 dB, 8 samples, exact Q7.8 match
+PASS: all HDL stages match integer oracle; SNR > 30 dB against unquantized float64 oracle
+
+=== stderr ===
