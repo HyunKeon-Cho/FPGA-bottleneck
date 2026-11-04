@@ -1,10 +1,4 @@
-﻿Bottleneck simulation: 2026-11-03 21:24:28
-RTL: C:\Users\zlak0\Desktop\FPGA-bottleneck\bottleneck\rtl_dummy
-Running reference (log: C:\Users\zlak0\Desktop\FPGA-bottleneck\AI_workspace\run\logs\reference.log)
-Running compile (log: C:\Users\zlak0\Desktop\FPGA-bottleneck\AI_workspace\run\logs\compile.log)
-Running elaborate (log: C:\Users\zlak0\Desktop\FPGA-bottleneck\AI_workspace\run\logs\elaborate.log)
-Running simulate (log: C:\Users\zlak0\Desktop\FPGA-bottleneck\AI_workspace\run\logs\simulate.log)
-Running verify (log: C:\Users\zlak0\Desktop\FPGA-bottleneck\AI_workspace\run\logs\verify.log)
-PASS: simulation and Python verification completed.
-SNR and comparisons: C:\Users\zlak0\Desktop\FPGA-bottleneck\AI_workspace\run\logs\verify.log
-GUI launched (launcher PID 30880); log: C:\Users\zlak0\Desktop\FPGA-bottleneck\AI_workspace\gui_run_20261103_212436_618\xsim_gui.log
+﻿Bottleneck simulation: 2026-11-04 10:00:15
+RTL: C:\Users\idec\Desktop\chohyunkeon\project\FPGA-bottleneck\bottleneck\rtl_dummy
+Running reference (log: C:\Users\idec\Desktop\chohyunkeon\project\FPGA-bottleneck\AI_workspace\run\logs\reference.log)
+FAIL: reference failed (exit 9009). See C:\Users\idec\Desktop\chohyunkeon\project\FPGA-bottleneck\AI_workspace\run\logs\reference.log

@@ -4,7 +4,7 @@ import json
 import numpy as np
 
 ROOT = Path(__file__).resolve().parent.parent
-WORK = ROOT / 'AI_workspace'
+WORK = Path(__file__).resolve().parent
 DATA = WORK / 'data'
 BENCH = ROOT / 'bottleneck/bench/tb_core/data'
 SCALE = 256

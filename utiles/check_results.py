@@ -5,6 +5,7 @@ import numpy as np
 from generate_reference import snr
 
 ROOT=Path(__file__).resolve().parent
+RUN=ROOT.parent/'bottleneck/bench/tb_core/.log'
 manifest=json.loads((ROOT/'reference_manifest.json').read_text())
 
 def read_hex(path):
@@ -16,7 +17,7 @@ def main():
     for case in manifest['cases']:
         case_id=case['case']
         for stage in case['stages_snr_db']:
-            actual=read_hex(ROOT/'run'/f'case{case_id}_{stage}_actual.txt')
+            actual=read_hex(RUN/f'case{case_id}_{stage}_actual.txt')
             reference=read_hex(ROOT/'data'/f'case{case_id}_{stage}.txt')
             real_reference=np.loadtxt(ROOT/'data'/f'case{case_id}_{stage}_float.txt')
             np.testing.assert_array_equal(actual,reference,err_msg=f'case{case_id} {stage}')
@@ -24,7 +25,7 @@ def main():
             assert value>30, (case_id,stage,value)
             report.append(dict(case=case_id,stage=stage,samples=len(actual),bit_mismatches=0,
                                snr_db=float(value),max_abs_error=float(np.max(np.abs(actual/256-real_reference)))))
-    (ROOT/'results.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
+    (RUN/'results.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
     for row in report:
         print(f"case{row['case']} {row['stage']:9s}: {row['snr_db']:.2f} dB, {row['samples']} samples, exact Q7.8 match")
     print('PASS: all HDL stages match integer oracle; SNR > 30 dB against unquantized float64 oracle')

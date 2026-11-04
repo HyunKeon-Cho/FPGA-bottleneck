@@ -15,7 +15,6 @@ module pooling #(
 
 // Behavioral, simulation-only dummy. All external transfers require valid && ready.
 // Output and valid remain stable until accepted. No TB hierarchy accesses.
-`include "fixed_math.vh"
 reg signed [15:0] first;
 reg have_first;
 reg signed [63:0] accumulator;
