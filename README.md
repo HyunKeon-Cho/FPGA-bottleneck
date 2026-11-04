@@ -12,3 +12,6 @@
         // with Vivado GUI
         ./behav_sim.bat tb_core --gui
 
+# Appendix
+
+- [input model & data arrange rules](appendix.md)
