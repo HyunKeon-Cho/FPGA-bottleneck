@@ -2,6 +2,8 @@
 
 이 프로젝트는 AI기반으로 소스코드를 생성헀습니다.
 
+이 자료 그대로 dummy module을 실재 RTl로 대체하는 방식으로 작업 가능.
+
 ### 회로 디자인
 - bottleneck/[rtl_dummy](bottleneck/rtl_dummy)/*.v
     - 구현 예정인 각 모듈 (완성된 디지털 회로 아님)
