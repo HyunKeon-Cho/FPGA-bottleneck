@@ -53,6 +53,7 @@
         cd FPGA-bottleneck
 
 4. run
+
         # without Vivado GUI
         bash behav_sim.sh tb_core
   
