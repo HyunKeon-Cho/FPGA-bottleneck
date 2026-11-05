@@ -1,0 +1,50 @@
+{
+  "case": 1,
+  "original_seed": 20261103,
+  "rng_state": {
+    "bit_generator": "PCG64",
+    "state": {
+      "state": 267194245281758398137576368313602609592,
+      "inc": 289872293177636917062427592788219327885
+    },
+    "has_uint32": 0,
+    "uinteger": 0
+  },
+  "format": "signed Q7.8",
+  "input_shape": [
+    6,
+    6,
+    8
+  ],
+  "output_shape": [
+    8
+  ],
+  "files": {
+    "input": "ref_input.txt",
+    "kernel": "ref_kernel.txt",
+    "output": "ref_ouptut.txt"
+  },
+  "phases": [
+    {
+      "phase": 1,
+      "samples": 72,
+      "reference": "ref_2_relu1.txt",
+      "float_reference": "ref_2_relu1_float.txt",
+      "actual": "phase1_actual.txt"
+    },
+    {
+      "phase": 2,
+      "samples": 72,
+      "reference": "ref_4_relu2.txt",
+      "float_reference": "ref_4_relu2_float.txt",
+      "actual": "phase2_actual.txt"
+    },
+    {
+      "phase": 3,
+      "samples": 8,
+      "reference": "ref_ouptut.txt",
+      "float_reference": "ref_ouptut_float.txt",
+      "actual": "phase3_actual.txt"
+    }
+  ]
+}

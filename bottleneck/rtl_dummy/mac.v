@@ -1,55 +1,81 @@
 `timescale 1ns/1ps
-module mac #(
-    parameter integer BITWIDTH = 16
-)(
-    input  wire                         clk, 
-    input  wire                         nrst,
-    input  wire                         iteration,
-    input  wire                         in_valid, 
-    output wire                         in_ready,
-    input  wire signed [BITWIDTH-1:0]   in_data,
-    input  wire                         in_last,
-    output reg                          out_valid, 
-    input  wire                         out_ready,
-    output reg  signed [BITWIDTH-1:0]  out_data
+// Task-based behavioral model. Configuration is stable for a complete phase.
+// One group is collected, then drained before any subsequent group is accepted.
+module mac #(parameter integer BITWIDTH = 16)(
+    input wire clk,
+    input wire nrst,
+    input wire enable,
+    input wire [4:0] iteration,
+    input wire in_valid,
+    output wire in_ready,
+    input wire signed [BITWIDTH-1:0] in_data,
+    input wire signed [BITWIDTH-1:0] kernel_data,
+    output reg out_valid,
+    input wire out_ready,
+    output reg signed [BITWIDTH-1:0] out_data
 );
+reg signed [BITWIDTH-1:0] input_buffer [0:30];
+reg signed [BITWIDTH-1:0] kernel_buffer [0:30];
+reg signed [BITWIDTH-1:0] output_buffer [0:30];
+integer input_count, output_index, output_length;
+assign in_ready = nrst && !out_valid;
 
-// Behavioral, simulation-only dummy. All external transfers require valid && ready.
-// Output and valid remain stable until accepted. No TB hierarchy accesses.
-`include "fixed_math.vh"
-reg signed [15:0] first;
-reg have_first;
-reg signed [63:0] accumulator;
-integer count;
-assign in_ready = nrst && (!out_valid || out_ready);
+function automatic signed [15:0] saturate16(input signed [63:0] value);
+    if (value > 32767) saturate16 = 16'sh7fff;
+    else if (value < -32768) saturate16 = 16'sh8000;
+    else saturate16 = value[15:0];
+endfunction
 
-// iteration=0: activation; iteration=1: weight. in_last marks the last weight.
-// Accumulate full products (16 fractional bits); round/saturate once per dot product.
-task automatic compute(input signed [15:0] value, input weight_phase, input last);
-    reg signed [63:0] product, total;
+function automatic signed [63:0] rounded_divide(input signed [63:0] value, input integer divisor);
+    if (value < 0) rounded_divide = -((-value + divisor/2) / divisor);
+    else rounded_divide = (value + divisor/2) / divisor;
+endfunction
+
+task automatic compute;
+    integer i;
+    reg signed [63:0] total;
+    reg signed [BITWIDTH-1:0] maximum;
     begin
-        if (!weight_phase) begin first = value; have_first = 1; end
-        else if (have_first) begin
-            product = $signed(first) * $signed(value);
-            total = accumulator + product;
-            have_first = 0;
-            if (last) begin
-                out_data <= sat16(round_div(total,256));
-                out_valid <= 1;
-                accumulator = 0;
-            end else accumulator = total;
+        if (enable) begin
+            total = 0;
+            for (i = 0; i < iteration; i = i + 1)
+                total = total + $signed(input_buffer[i]) * $signed(kernel_buffer[i]);
+            output_buffer[0] = saturate16(rounded_divide(total, 256));
+            output_length = 1;
+        end else begin
+            for (i = 0; i < iteration; i = i + 1) output_buffer[i] = input_buffer[i];
+            output_length = iteration;
         end
+        output_index = 0;
+        out_data <= output_buffer[0];
+        out_valid <= 1;
     end
 endtask
 
 always @(posedge clk or negedge nrst) begin
     if (!nrst) begin
+        input_count = 0; output_index = 0; output_length = 0;
         out_valid <= 0; out_data <= 0;
-        first = 0; have_first = 0; accumulator = 0; count = 0;
     end else begin
-        if (out_valid && out_ready) out_valid <= 0;
-        if (in_valid && in_ready) compute(in_data, iteration, in_last);
+        if (out_valid && out_ready) begin
+            if (output_index + 1 < output_length) begin
+                output_index = output_index + 1;
+                out_data <= output_buffer[output_index];
+            end else begin
+                out_valid <= 0;
+                output_index = 0;
+                output_length = 0;
+            end
+        end
+        if (in_valid && in_ready) begin
+            input_buffer[input_count] = in_data;
+            kernel_buffer[input_count] = kernel_data;
+            input_count = input_count + 1;
+            if (input_count == iteration) begin
+                compute();
+                input_count = 0;
+            end
+        end
     end
 end
-initial if (BITWIDTH != 16) $fatal(1,"Dummy format requires BITWIDTH=16 (Q7.8)");
 endmodule
