@@ -38,20 +38,27 @@
                         └ ...
 
 
-# How to run Behavior sumulation
+# How to run Behavioral simulation
 
-1. open terminal
+- in Linux jump to step 3
+
+1. open git bash
+2. bash setup (if you need)
+
+        export PATH="/c/{vivado path}/bin:$PATH"
+
+3. download 
 
         git clone https://github.com/HyunKeon-Cho/FPGA-bottleneck.git
         cd FPGA-bottleneck
 
-        // without Vivado GUI
-        ./behav_sim.bat tb_core
-
-        
-        // with Vivado GUI
-        ./behav_sim.bat tb_core --gui
+4. run
+        # without Vivado GUI
+        bash behav_sim.sh tb_core
+  
+        # with Vivado GUI
+        bash behav_sim.sh tb_core --gui
 
 # Appendix
 
-- [input model & data arrange rules](appendix.md)
+- [input model & data arrange rules](docs/appendix.md)
