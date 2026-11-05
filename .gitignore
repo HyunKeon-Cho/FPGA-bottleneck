@@ -1,2 +1,4 @@
-.log
-AI_workspace/
+.log/
+__pycache__/
+*.py[cod]
+.venv/

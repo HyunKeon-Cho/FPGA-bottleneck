@@ -1,59 +1,77 @@
 `timescale 1ns/1ps
-module general_average_pooling #(
-    parameter integer BITWIDTH = 16
-)(
-    input  wire                         clk, 
-    input  wire                         nrst,
-    input  wire                         in_valid, 
-    output wire                         in_ready,
-    input  wire signed [BITWIDTH-1:0]   in_data,
-    input  wire                         in_last,
-    output reg                          out_valid, 
-    input  wire                         out_ready,
-    output reg  signed [BITWIDTH-1:0]   out_data
+// Task-based behavioral model. Configuration is stable for a complete phase.
+// One group is collected, then drained before any subsequent group is accepted.
+module general_average_pooling #(parameter integer BITWIDTH = 16)(
+    input wire clk,
+    input wire nrst,
+    input wire enable,
+    input wire [4:0] iteration,
+    input wire in_valid,
+    output wire in_ready,
+    input wire signed [BITWIDTH-1:0] in_data,
+    output reg out_valid,
+    input wire out_ready,
+    output reg signed [BITWIDTH-1:0] out_data
 );
+reg signed [BITWIDTH-1:0] input_buffer [0:30];
+reg signed [BITWIDTH-1:0] output_buffer [0:30];
+integer input_count, output_index, output_length;
+assign in_ready = nrst && !out_valid;
 
-// Behavioral, simulation-only dummy. All external transfers require valid && ready.
-// Output and valid remain stable until accepted. No TB hierarchy accesses.
-// Behavioral dummy arithmetic: sign + 7 integer bits + 8 fractional bits.
-// Round nearest, ties away from zero; saturate at every module output.
-function automatic signed [15:0] sat16(input signed [63:0] value);
-    if (value > 32767) sat16 = 16'sh7fff;
-    else if (value < -32768) sat16 = 16'sh8000;
-    else sat16 = value[15:0];
+function automatic signed [15:0] saturate16(input signed [63:0] value);
+    if (value > 32767) saturate16 = 16'sh7fff;
+    else if (value < -32768) saturate16 = 16'sh8000;
+    else saturate16 = value[15:0];
 endfunction
 
-function automatic signed [63:0] round_div(
-    input signed [63:0] value, input signed [63:0] divisor);
-    if (value < 0) round_div = -((-value + divisor/2) / divisor);
-    else round_div = (value + divisor/2) / divisor;
+function automatic signed [63:0] rounded_divide(input signed [63:0] value, input integer divisor);
+    if (value < 0) rounded_divide = -((-value + divisor/2) / divisor);
+    else rounded_divide = (value + divisor/2) / divisor;
 endfunction
-reg signed [15:0] first;
-reg have_first;
-reg signed [63:0] accumulator;
-integer count;
-assign in_ready = nrst && (!out_valid || out_ready);
 
-// TB sends all spatial samples for one channel; in_last ends that channel.
-task automatic compute(input signed [15:0] value, input last);
+task automatic compute;
+    integer i;
     reg signed [63:0] total;
+    reg signed [BITWIDTH-1:0] maximum;
     begin
-        total = accumulator + $signed(value);
-        if (last) begin
-            out_data <= sat16(round_div(total,count+1)); out_valid <= 1;
-            count = 0; accumulator = 0;
-        end else begin count = count + 1; accumulator = total; end
+        if (enable) begin
+            total = 0;
+            for (i = 0; i < iteration; i = i + 1) total = total + $signed(input_buffer[i]);
+            output_buffer[0] = saturate16(rounded_divide(total, iteration));
+            output_length = 1;
+        end else begin
+            for (i = 0; i < iteration; i = i + 1) output_buffer[i] = input_buffer[i];
+            output_length = iteration;
+        end
+        output_index = 0;
+        out_data <= output_buffer[0];
+        out_valid <= 1;
     end
 endtask
 
 always @(posedge clk or negedge nrst) begin
     if (!nrst) begin
+        input_count = 0; output_index = 0; output_length = 0;
         out_valid <= 0; out_data <= 0;
-        first = 0; have_first = 0; accumulator = 0; count = 0;
     end else begin
-        if (out_valid && out_ready) out_valid <= 0;
-        if (in_valid && in_ready) compute(in_data, in_last);
+        if (out_valid && out_ready) begin
+            if (output_index + 1 < output_length) begin
+                output_index = output_index + 1;
+                out_data <= output_buffer[output_index];
+            end else begin
+                out_valid <= 0;
+                output_index = 0;
+                output_length = 0;
+            end
+        end
+        if (in_valid && in_ready) begin
+            input_buffer[input_count] = in_data;
+            input_count = input_count + 1;
+            if (input_count == iteration) begin
+                compute();
+                input_count = 0;
+            end
+        end
     end
 end
-initial if (BITWIDTH != 16) $fatal(1,"Dummy format requires BITWIDTH=16 (Q7.8)");
 endmodule

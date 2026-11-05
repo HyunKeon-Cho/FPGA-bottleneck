@@ -1,394 +1,350 @@
 `timescale 1ns/1ps
 module tb_core;
-    // ----------------------------------------------------------------
-    // signals
-    // ----------------------------------------------------------------
-    reg	clk = 0;
-    reg	nrst = 0;
+    reg clk = 0;
+    reg nrst = 0;
     always #5 clk = ~clk;
-    wire [4:0]	iv;
-    wire [4:0]	il;
-    reg [4:0]	ordy = 0;
-    wire [4:0]	ir;
-    wire [4:0]	ov;
-    wire signed [15:0]	idata [0:4];
-    wire signed [15:0]	odata [0:4];
-    wire	iteration;
 
-    reg	start = 0;
-    wire	done;
-    reg	pool_enable = 0;
-    wire	stage_valid;
-    reg	stage_ready = 0;
-    wire integer	stage_id;
-    wire integer	stage_unit;
-    wire integer	stage_start;
-    wire integer	stage_size;
+    reg mac_enable = 0, residual_enable = 0, relu_enable = 0;
+    reg pooling_enable = 0, gap_enable = 0;
+    reg [4:0] mac_iteration = 1, pooling_iteration = 4, gap_iteration = 9;
+    reg mac_in_valid = 0;
+    wire mac_in_ready;
+    reg signed [15:0] mac_in_data = 0, mac_kernel_data = 0;
+    wire mac_out_valid, mac_out_ready;
+    wire signed [15:0] mac_out_data;
+    wire residual_in_valid, residual_in_ready;
+    wire signed [15:0] residual_in_data;
+    reg residual_skip_valid = 0;
+    wire residual_skip_ready;
+    reg signed [15:0] residual_skip_data = 0;
+    wire residual_out_valid, residual_out_ready;
+    wire signed [15:0] residual_out_data;
+    wire relu_in_valid, relu_in_ready;
+    wire signed [15:0] relu_in_data;
+    wire relu_out_valid, relu_out_ready;
+    wire signed [15:0] relu_out_data;
+    wire pooling_in_valid, pooling_in_ready;
+    wire signed [15:0] pooling_in_data;
+    wire pooling_out_valid, pooling_out_ready;
+    wire signed [15:0] pooling_out_data;
+    wire gap_in_valid, gap_in_ready;
+    wire signed [15:0] gap_in_data;
+    wire gap_out_valid;
+    reg gap_out_ready = 0;
+    wire signed [15:0] gap_out_data;
 
-    // ----------------------------------------------------------------
-    // scoreboard and case configuration
-    // ----------------------------------------------------------------
-    // File data feeds the controller; captured data is an independent scoreboard.
-    reg signed [15:0]	inputs [0:415];
-    reg signed [15:0]	weights [0:135];
-    reg signed [15:0]	outputs [0:199];
-    reg signed [15:0]	captured [0:4][0:1023];
-    reg signed [15:0]	expected [0:1023];
-    integer	received [0:4];
-    integer	sent [0:4];
-    integer	stalled [0:4];
-    integer	input_wait [0:4];
-    reg [4:0]	was_stalled = 0;
-    reg signed [15:0]	held [0:4];
-    integer	cycle = 0;
-    integer	monitor_index;
-    integer	ready_index;
-    integer	case_id;
-    integer	h;
-    integer	input_offset;
-    integer	kernel_offset;
-    integer	i;
-    reg	random_mode = 1;
-    reg [31:0]	random_state = 32'h5eed1234;
+    // Every DUT output is connected to the next DUT's input.
+    assign residual_in_valid = mac_out_valid;
+    assign residual_in_data = mac_out_data;
+    assign mac_out_ready = residual_in_ready;
+    assign relu_in_valid = residual_out_valid;
+    assign relu_in_data = residual_out_data;
+    assign residual_out_ready = relu_in_ready;
+    assign pooling_in_valid = relu_out_valid;
+    assign pooling_in_data = relu_out_data;
+    assign relu_out_ready = pooling_in_ready;
+    assign gap_in_valid = pooling_out_valid;
+    assign gap_in_data = pooling_out_data;
+    assign pooling_out_ready = gap_in_ready;
 
-    // ----------------------------------------------------------------
-    // instances
-    // ----------------------------------------------------------------
-    mac m (
-        .clk			(clk),
-        .nrst			(nrst),
-        .iteration		(iteration),
-        .in_valid		(iv[0]),
-        .in_ready		(ir[0]),
-        .in_data		(idata[0]),
-        .in_last		(il[0]),
-        .out_valid		(ov[0]),
-        .out_ready		(ordy[0]),
-        .out_data		(odata[0])
+    mac u_mac (
+        .clk(clk), .nrst(nrst), .enable(mac_enable), .iteration(mac_iteration),
+        .in_valid(mac_in_valid), .in_ready(mac_in_ready), .in_data(mac_in_data),
+        .kernel_data(mac_kernel_data), .out_valid(mac_out_valid),
+        .out_ready(mac_out_ready), .out_data(mac_out_data)
+    );
+    residual u_residual (
+        .clk(clk), .nrst(nrst), .enable(residual_enable),
+        .in_valid(residual_in_valid), .in_ready(residual_in_ready), .in_data(residual_in_data),
+        .skip_valid(residual_skip_valid), .skip_ready(residual_skip_ready), .skip_data(residual_skip_data),
+        .out_valid(residual_out_valid), .out_ready(residual_out_ready), .out_data(residual_out_data)
+    );
+    relu u_relu (
+        .clk(clk), .nrst(nrst), .enable(relu_enable),
+        .in_valid(relu_in_valid), .in_ready(relu_in_ready), .in_data(relu_in_data),
+        .out_valid(relu_out_valid), .out_ready(relu_out_ready), .out_data(relu_out_data)
+    );
+    pooling u_pooling (
+        .clk(clk), .nrst(nrst), .enable(pooling_enable), .iteration(pooling_iteration),
+        .in_valid(pooling_in_valid), .in_ready(pooling_in_ready), .in_data(pooling_in_data),
+        .out_valid(pooling_out_valid), .out_ready(pooling_out_ready), .out_data(pooling_out_data)
+    );
+    general_average_pooling u_gap (
+        .clk(clk), .nrst(nrst), .enable(gap_enable), .iteration(gap_iteration),
+        .in_valid(gap_in_valid), .in_ready(gap_in_ready), .in_data(gap_in_data),
+        .out_valid(gap_out_valid), .out_ready(gap_out_ready), .out_data(gap_out_data)
     );
 
-    relu r (
-        .clk			(clk),
-        .nrst			(nrst),
-        .in_valid		(iv[1]),
-        .in_ready		(ir[1]),
-        .in_data		(idata[1]),
-        .in_last		(il[1]),
-        .out_valid		(ov[1]),
-        .out_ready		(ordy[1]),
-        .out_data		(odata[1])
-    );
+    // Arranged values and actual phase results remain available after each phase.
+    reg signed [15:0] global_input [0:287];
+    reg signed [15:0] global_kernel [0:67];
+    reg signed [15:0] global_activation_schedule [0:2][0:1295];
+    reg signed [15:0] global_kernel_schedule [0:2][0:1295];
+    reg signed [15:0] global_skip_schedule [0:287];
+    reg signed [15:0] global_phase_output [0:2][0:287];
+    integer global_schedule_words [0:2];
+    integer global_phase_received [0:2];
+    reg signed [15:0] global_expected [0:287];
+    real global_float_expected [0:71];
+    real global_phase_snr [0:2];
+    integer current_phase = 0;
+    integer scoreboard_calls = 0;
+    integer global_report_file = 0;
+    integer cycle = 0;
+    integer reset_index;
+    reg controller_active = 0;
+    reg [31:0] random_state = 32'h5eed1234;
+    initial if ($value$plusargs("ready_seed=%d", random_state))
+        $display("[ INFO ] ready seed=%0d", random_state);
 
-    pooling p (
-        .clk			(clk),
-        .nrst			(nrst),
-        .in_valid		(iv[2]),
-        .in_ready		(ir[2]),
-        .in_data		(idata[2]),
-        .in_last		(il[2]),
-        .out_valid		(ov[2]),
-        .out_ready		(ordy[2]),
-        .out_data		(odata[2])
-    );
-
-    residual s (
-        .clk			(clk),
-        .nrst			(nrst),
-        .in_valid		(iv[3]),
-        .in_ready		(ir[3]),
-        .in_data		(idata[3]),
-        .in_last		(il[3]),
-        .out_valid		(ov[3]),
-        .out_ready		(ordy[3]),
-        .out_data		(odata[3])
-    );
-
-    general_average_pooling g (
-        .clk			(clk),
-        .nrst			(nrst),
-        .in_valid		(iv[4]),
-        .in_ready		(ir[4]),
-        .in_data		(idata[4]),
-        .in_last		(il[4]),
-        .out_valid		(ov[4]),
-        .out_ready		(ordy[4]),
-        .out_data		(odata[4])
-    );
-
-
-    embedded_controller controller (
-        .clk			(clk),
-        .nrst			(nrst),
-        .start			(start),
-        .h				(h),
-        .input_offset	(input_offset),
-        .kernel_offset	(kernel_offset),
-        .pool_enable	(pool_enable),
-        .inputs			(inputs),
-        .weights		(weights),
-        .iv				(iv),
-        .il				(il),
-        .idata			(idata),
-        .iteration		(iteration),
-        .ir				(ir),
-        .ov				(ov),
-        .ordy			(ordy),
-        .odata			(odata),
-        .stage_valid	(stage_valid),
-        .stage_ready	(stage_ready),
-        .stage_id		(stage_id),
-        .stage_unit		(stage_unit),
-        .stage_start	(stage_start),
-        .stage_size		(stage_size),
-        .done			(done)
-    );
-
-    // ----------------------------------------------------------------
-    // backpressure
-    // ----------------------------------------------------------------
-    // Reproducible pseudo-random stalls, including stretches of backpressure.
     always @(negedge clk) begin
-        if (!nrst) ordy = 0;
-        else if (random_mode) begin
+        if (!nrst) gap_out_ready = 0;
+        else begin
             random_state = (random_state >> 1) ^ (32'hd0000001 & {32{random_state[0]}});
-            for (ready_index = 0; ready_index < 5; ready_index = ready_index + 1)
-                ordy[ready_index] = (cycle % 19 >= 6) && random_state[ready_index];
+            gap_out_ready = (cycle % 19 >= 6) && random_state[0];
         end
     end
 
-    // ----------------------------------------------------------------
-    // output monitor
-    // ----------------------------------------------------------------
+    // Only the final port is observed; there are no per-layer scoreboards.
     always @(posedge clk) begin
         if (!nrst) begin
             cycle <= 0;
-            was_stalled <= 0;
-            for (monitor_index = 0; monitor_index < 5; monitor_index = monitor_index + 1) begin
-                received[monitor_index] <= 0;
-                sent[monitor_index] <= 0;
-                stalled[monitor_index] <= 0;
-                input_wait[monitor_index] <= 0;
-            end
+            for (reset_index = 0; reset_index < 3; reset_index = reset_index + 1)
+                global_phase_received[reset_index] <= 0;
         end else begin
             cycle <= cycle + 1;
-            for (monitor_index = 0; monitor_index < 5; monitor_index = monitor_index + 1) begin
-                if (was_stalled[monitor_index] &&
-                    (!ov[monitor_index] || odata[monitor_index] !== held[monitor_index]))
-                    $fatal(1, "[ ERROR ] Output changed under backpressure, unit %0d", monitor_index);
-                was_stalled[monitor_index] <= ov[monitor_index] && !ordy[monitor_index];
-                held[monitor_index] <= odata[monitor_index];
-                if (iv[monitor_index] && ir[monitor_index]) sent[monitor_index] <= sent[monitor_index] + 1;
-                if (iv[monitor_index] && !ir[monitor_index]) input_wait[monitor_index] <= input_wait[monitor_index] + 1;
-                if (ov[monitor_index] && !ordy[monitor_index]) stalled[monitor_index] <= stalled[monitor_index] + 1;
-                if (ov[monitor_index] && ordy[monitor_index]) begin
-                    captured[monitor_index][received[monitor_index]] <= odata[monitor_index];
-                    received[monitor_index] <= received[monitor_index] + 1;
+            if (current_phase > 0 && gap_out_valid && gap_out_ready) begin
+                global_phase_output[current_phase-1][global_phase_received[current_phase-1]] <= gap_out_data;
+                global_phase_received[current_phase-1] <= global_phase_received[current_phase-1] + 1;
+            end
+        end
+    end
+
+    always @(negedge nrst) begin
+        if (controller_active) disable controller;
+        controller_active = 0;
+        current_phase = 0;
+        mac_in_valid = 0;
+        residual_skip_valid = 0;
+        mac_enable = 0; residual_enable = 0; relu_enable = 0;
+        pooling_enable = 0; gap_enable = 0;
+        if (global_report_file != 0) begin
+            $fclose(global_report_file);
+            global_report_file = 0;
+        end
+    end
+
+    task automatic load_hex(input string path, input integer size);
+        integer fd, n, j, status;
+        string token;
+        reg [7:0] digit;
+        reg [15:0] value;
+        begin
+            fd = $fopen(path, "r");
+            if (!fd) $fatal(1, "[ ERROR ] Cannot open reference file: %s", path);
+            n = 0;
+            while ($fscanf(fd, "%s", token) == 1) begin
+                if (n >= size) $fatal(1, "[ ERROR ] Reference word count exceeds %0d: %s", size, path);
+                if (token.len() != 4) $fatal(1, "[ ERROR ] Invalid reference word: %s in %s", token, path);
+                for (j = 0; j < 4; j = j + 1) begin
+                    digit = token[j];
+                    if (!((digit >= "0" && digit <= "9") || (digit >= "a" && digit <= "f") ||
+                          (digit >= "A" && digit <= "F")))
+                        $fatal(1, "[ ERROR ] Invalid reference word: %s in %s", token, path);
                 end
+                status = $sscanf(token, "%h", value);
+                if (status != 1) $fatal(1, "[ ERROR ] Invalid reference word in %s", path);
+                global_expected[n] = value;
+                n = n + 1;
+            end
+            $fclose(fd);
+            if (n != size) $fatal(1, "[ ERROR ] Reference word count %0d, expected %0d: %s", n, size, path);
+        end
+    endtask
+
+    task automatic load_float(input string path, input integer size);
+        integer fd, n, status;
+        string token, trailing;
+        real value;
+        begin
+            fd = $fopen(path, "r");
+            if (!fd) $fatal(1, "[ ERROR ] Cannot open float reference: %s", path);
+            n = 0;
+            while ($fscanf(fd, "%s", token) == 1) begin
+                if (n >= size) $fatal(1, "[ ERROR ] Float reference count exceeds %0d: %s", size, path);
+                status = $sscanf(token, "%f%s", value, trailing);
+                if (status != 1) $fatal(1, "[ ERROR ] Invalid float reference: %s in %s", token, path);
+                if (value != value || value > 1.0e300 || value < -1.0e300)
+                    $fatal(1, "[ ERROR ] Invalid float reference: %s in %s", token, path);
+                global_float_expected[n] = value;
+                n = n + 1;
+            end
+            $fclose(fd);
+            if (n != size) $fatal(1, "[ ERROR ] Float reference count %0d, expected %0d: %s", n, size, path);
+        end
+    endtask
+
+    task automatic data_schedule(input integer phase);
+        integer cin, cout, kernel_size, weight_base, output_words;
+        integer output_index, y, x, oc, window, ky, kx, ic, iy, ix, term;
+        reg signed [15:0] value;
+        begin
+            case (phase)
+                1: begin cin = 8; cout = 2; kernel_size = 1; weight_base = 0; end
+                2: begin cin = 2; cout = 2; kernel_size = 3; weight_base = 16; end
+                3: begin cin = 2; cout = 8; kernel_size = 1; weight_base = 52; end
+            endcase
+            output_words = 36 * cout;
+            global_schedule_words[phase-1] = output_words * kernel_size * kernel_size * cin;
+            for (output_index = 0; output_index < output_words; output_index = output_index + 1) begin
+                if (phase < 3) begin
+                    oc = output_index % cout;
+                    y = (output_index / cout) / 6;
+                    x = (output_index / cout) % 6;
+                end else begin
+                    // c -> tile y,x -> dy,dx. Four consecutive outputs form one pool window.
+                    oc = output_index / 36;
+                    window = (output_index / 4) % 9;
+                    y = (window / 3) * 2 + (output_index % 4) / 2;
+                    x = (window % 3) * 2 + output_index % 2;
+                    global_skip_schedule[output_index] = global_input[(y*6+x)*8+oc];
+                end
+                term = output_index * kernel_size * kernel_size * cin;
+                for (ky = 0; ky < kernel_size; ky = ky + 1)
+                    for (kx = 0; kx < kernel_size; kx = kx + 1)
+                        for (ic = 0; ic < cin; ic = ic + 1) begin
+                            iy = y + ky - kernel_size / 2;
+                            ix = x + kx - kernel_size / 2;
+                            value = 0;
+                            if (iy >= 0 && iy < 6 && ix >= 0 && ix < 6) begin
+                                if (phase == 1) value = global_input[(iy*6+ix)*cin+ic];
+                                else value = global_phase_output[phase-2][(iy*6+ix)*cin+ic];
+                            end
+                            global_activation_schedule[phase-1][term] = value;
+                            global_kernel_schedule[phase-1][term] = global_kernel[weight_base+((oc*kernel_size+ky)*kernel_size+kx)*cin+ic];
+                            term = term + 1;
+                        end
             end
         end
-    end
-
-    // ----------------------------------------------------------------
-    // transfer tasks
-    // ----------------------------------------------------------------
-    task automatic await_count (
-        input integer	unit_id,
-        input integer	target
-    );
-        begin
-            @(negedge clk);
-            while (received[unit_id] < target) @(negedge clk);
-            if (received[unit_id] != target) $fatal(1, "[ ERROR ] Unexpected output count");
-        end
     endtask
 
-    // ----------------------------------------------------------------
-    // check tasks
-    // ----------------------------------------------------------------
-    task automatic check_one (
-        input integer		unit_id,
-        input integer		index,
-        input signed [15:0]	value
-    );
+    task automatic send_mac(input integer phase);
+        integer i;
         begin
-            await_count(unit_id, index + 1);
-            if (captured[unit_id][index] !== value)
-                $fatal(1, "[ ERROR ] Directed unit=%0d got=%0d expected=%0d", unit_id, $signed(captured[unit_id][index]), value);
-        end
-    endtask
-
-    task automatic check_stage (
-        input integer	unit_id,
-        input integer	start,
-        input integer	size,
-        input string	stage_name
-    );
-        integer	t;
-        integer	file_id;
-        string	path;
-        begin
-            await_count(unit_id, start + size);
-            path = $sformatf("../../../../utiles/data/case%0d_%s.txt", case_id, stage_name);
-            $readmemh(path, expected, 0, size - 1);
-            file_id = $fopen($sformatf("case%0d_%s_actual.txt", case_id, stage_name), "w");
-            for (t = 0; t < size; t = t + 1) begin
-                if (captured[unit_id][start + t] !== expected[t])
-                    $fatal(1, "[ ERROR ] case%0d %s index=%0d actual=%0d ref=%0d", case_id, stage_name, t,
-                           $signed(captured[unit_id][start + t]), $signed(expected[t]));
-                if (stage_name == "output" &&
-                    captured[unit_id][start + t] !== outputs[(case_id == 0 ? 0 : 128) + t])
-                    $fatal(1, "[ ERROR ] Bench output mismatch");
-                $fdisplay(file_id, "%04h", captured[unit_id][start + t]);
+            for (i = 0; i < global_schedule_words[phase-1]; i = i + 1) begin
+                @(negedge clk);
+                mac_in_data = global_activation_schedule[phase-1][i];
+                mac_kernel_data = global_kernel_schedule[phase-1][i];
+                mac_in_valid = 1;
+                @(posedge clk);
+                while (!mac_in_ready) @(posedge clk);
+                @(negedge clk);
+                mac_in_valid = 0;
             end
-            $fclose(file_id);
-            $display("[ PASS ] case%0d %s (%0d values)", case_id, stage_name, size);
         end
     endtask
 
-    // ----------------------------------------------------------------
-    // stage checker
-    // ----------------------------------------------------------------
-    function automatic string stage_label (
-        input integer	id
-    );
-        case (id)
-            0: stage_label = "conv1";
-            1: stage_label = "relu1";
-            2: stage_label = "conv2";
-            3: stage_label = "relu2";
-            4: stage_label = "conv3";
-            5: stage_label = "residual";
-            6: stage_label = "relu3";
-            7: stage_label = "pool";
-            8: stage_label = "output";
-            9: stage_label = "gap";
-            default: stage_label = "unknown";
-        endcase
-    endfunction
-
-    // Acknowledge only after checking the independently observed HDL output.
-    initial begin
-        forever begin
-            @(posedge stage_valid);
-            check_stage(stage_unit, stage_start, stage_size, stage_label(stage_id));
-            stage_ready = 1;
-            @(negedge stage_valid);
-            stage_ready = 0;
-        end
-    end
-
-    // ----------------------------------------------------------------
-    // reset
-    // ----------------------------------------------------------------
-    task automatic reset_all;
+    task automatic send_skip;
+        integer i;
         begin
-            @(negedge clk);
+            for (i = 0; i < 288; i = i + 1) begin
+                @(negedge clk);
+                residual_skip_data = global_skip_schedule[i];
+                residual_skip_valid = 1;
+                @(posedge clk);
+                while (!residual_skip_ready) @(posedge clk);
+                @(negedge clk);
+                residual_skip_valid = 0;
+            end
+        end
+    endtask
+
+    task automatic scoreboard(input integer phase);
+        integer size, i, fd, actual_integer;
+        string reference_name;
+        real signal_power, noise_power, actual_real, difference, snr;
+        begin
+            case (phase)
+                1: begin size = 72; reference_name = "ref_2_relu1"; end
+                2: begin size = 72; reference_name = "ref_4_relu2"; end
+                3: begin size = 8; reference_name = "ref_ouptut"; end
+            endcase
+            load_hex($sformatf("../data/%s.txt", reference_name), size);
+            load_float($sformatf("../data/%s_float.txt", reference_name), size);
+            fd = $fopen($sformatf("phase%0d_actual.txt", phase), "w");
+            if (!fd) $fatal(1, "[ ERROR ] Cannot open phase output file");
+            signal_power = 0.0; noise_power = 0.0;
+            for (i = 0; i < size; i = i + 1) begin
+                if (global_phase_output[phase-1][i] !== global_expected[i])
+                    $fatal(1, "[ ERROR ] phase%0d index=%0d actual=%0d expected=%0d", phase, i,
+                           $signed(global_phase_output[phase-1][i]), $signed(global_expected[i]));
+                $fdisplay(fd, "%04h", global_phase_output[phase-1][i]);
+                actual_integer = $signed(global_phase_output[phase-1][i]);
+                actual_real = $itor(actual_integer) / 256.0;
+                difference = global_float_expected[i] - actual_real;
+                signal_power = signal_power + global_float_expected[i] * global_float_expected[i];
+                noise_power = noise_power + difference * difference;
+            end
+            $fclose(fd);
+            if (noise_power == 0.0) snr = 1.0e300;
+            else if (signal_power == 0.0) snr = -1.0e300;
+            else snr = 10.0 * $ln(signal_power / noise_power) / $ln(10.0);
+            if (snr <= 30.0) $fatal(1, "[ ERROR ] phase%0d SNR=%f <= 30 dB", phase, snr);
+            global_phase_snr[phase-1] = snr;
+            scoreboard_calls = scoreboard_calls + 1;
+            $fdisplay(global_report_file, "%0d %0d %.12f", phase, size, snr);
+            $fflush(global_report_file);
+            $display("[ PASS ] phase%0d (%0d values), SNR=%.8f dB", phase, size, snr);
+        end
+    endtask
+
+    task automatic controller;
+        integer phase, i, expected_words;
+        begin : controller_run
+            controller_active = 0;
+            current_phase = 0;
+            scoreboard_calls = 0;
+            mac_in_valid = 0; residual_skip_valid = 0;
             nrst = 0;
             repeat (3) @(negedge clk);
             nrst = 1;
+            controller_active = 1;
+            load_hex("../data/ref_input.txt", 288);
+            for (i = 0; i < 288; i = i + 1) global_input[i] = global_expected[i];
+            load_hex("../data/ref_kernel.txt", 68);
+            for (i = 0; i < 68; i = i + 1) global_kernel[i] = global_expected[i];
+            global_report_file = $fopen("scoreboard_results.txt", "w");
+            if (!global_report_file) $fatal(1, "[ ERROR ] Cannot open scoreboard report");
+            for (phase = 1; phase <= 3; phase = phase + 1) begin
+                @(negedge clk);
+                current_phase = phase;
+                mac_enable = 1; relu_enable = 1;
+                residual_enable = phase == 3;
+                pooling_enable = phase == 3;
+                gap_enable = phase == 3;
+                mac_iteration = phase == 1 ? 5'd8 : (phase == 2 ? 5'd18 : 5'd2);
+                pooling_iteration = 5'd4; gap_iteration = 5'd9;
+                expected_words = phase == 3 ? 8 : 72;
+                data_schedule(phase);
+                $display("[ INFO ] phase%0d scheduled %0d activation/kernel pairs", phase, global_schedule_words[phase-1]);
+                fork
+                    send_mac(phase);
+                    begin if (phase == 3) send_skip(); end
+                join
+                @(negedge clk);
+                while (global_phase_received[phase-1] < expected_words) @(negedge clk);
+                wait (!(mac_out_valid || residual_out_valid || relu_out_valid || pooling_out_valid || gap_out_valid));
+                if (global_phase_received[phase-1] != expected_words)
+                    $fatal(1, "[ ERROR ] phase%0d output count mismatch", phase);
+                scoreboard(phase);
+            end
+            $fclose(global_report_file);
+            global_report_file = 0;
+            controller_active = 0;
+            $display("[ PASS ] ALL TESTS PASSED");
+            $finish;
         end
     endtask
 
-    // ----------------------------------------------------------------
-    // watchdog
-    // ----------------------------------------------------------------
-    initial begin
-        // Stop the simulation if a handshake deadlock occurs.
-        #20000000;
-        $fatal(1, "[ ERROR ] Handshake timeout");
-    end
-
-    // ----------------------------------------------------------------
-    // test sequence
-    // ----------------------------------------------------------------
-    initial begin
-        $display("----------------------------------------------------------------");
-        $display("[1/3] Checking reset and directed arithmetic...");
-        $display("----------------------------------------------------------------");
-
-        reset_all();
-        // Reset while MAC/GAP/pool/residual hold partial work and ReLU holds an output.
-        random_mode = 0;
-        ordy = 0;
-        controller.send_word(0, 1000, 0, 0);
-        controller.send_word(0, 2000, 0, 1);
-        controller.send_word(2, -100, 0, 0);
-        controller.send_word(3, 100, 0, 0);
-        controller.send_word(4, 100, 0, 0);
-        controller.send_word(1, 123, 0, 0);
-        reset_all();
-        random_mode = 1;
-        // Directed signed arithmetic: both saturation signs, tie rounding, max of negatives.
-        controller.send_word(0, 32767, 0, 0);
-        controller.send_word(0, 32767, 1, 1);
-        check_one(0, 0, 32767);
-        controller.send_word(0, -32768, 0, 0);
-        controller.send_word(0, 32767, 1, 1);
-        check_one(0, 1, -32768);
-        controller.send_word(0, 1, 0, 0);
-        controller.send_word(0, 128, 1, 1);
-        check_one(0, 2, 1);
-        controller.send_word(0, -1, 0, 0);
-        controller.send_word(0, 128, 1, 1);
-        check_one(0, 3, -1);
-        controller.send_word(1, -32768, 0, 0);
-        check_one(1, 0, 0);
-        controller.send_word(1, 32767, 1, 0);
-        check_one(1, 1, 32767);
-        controller.send_word(2, -50, 0, 0);
-        controller.send_word(2, -200, 0, 0);
-        controller.send_word(2, -2, 0, 0);
-        controller.send_word(2, -8, 1, 0);
-        check_one(2, 0, -2);
-        controller.send_word(3, 32767, 0, 0);
-        controller.send_word(3, 256, 1, 0);
-        check_one(3, 0, 32767);
-        controller.send_word(3, -32768, 0, 0);
-        controller.send_word(3, -256, 1, 0);
-        check_one(3, 1, -32768);
-        controller.send_word(4, -1, 0, 0);
-        controller.send_word(4, 0, 1, 0);
-        check_one(4, 0, -1);
-        controller.send_word(4, 1, 0, 0);
-        controller.send_word(4, 0, 1, 0);
-        check_one(4, 1, 1);
-        $display("[ PASS ] directed arithmetic and reset-in-flight");
-        reset_all();
-
-        $display("----------------------------------------------------------------");
-        $display("[2/3] Checking bottleneck cases...");
-        $display("----------------------------------------------------------------");
-
-        $readmemh("../data/input.txt", inputs);
-        $readmemh("../data/kernel.txt", weights);
-        $readmemh("../data/output.txt", outputs);
-        input_offset = 0;
-        for (case_id = 0; case_id < 2; case_id = case_id + 1) begin
-            h = case_id == 0 ? 4 : 6;
-            kernel_offset = case_id * 68;
-            pool_enable = case_id == 1;
-            @(negedge clk);
-            start = 1;
-            wait (done);
-            @(negedge clk);
-            start = 0;
-            wait (!done);
-            input_offset = input_offset + h * h * 8;
-        end
-        repeat (30) @(negedge clk);
-
-        $display("----------------------------------------------------------------");
-        $display("[3/3] Checking handshake totals...");
-        $display("----------------------------------------------------------------");
-
-        // Exactly one result per dot/window/pair/channel, and one per ReLU input.
-        if (received[0] != 624 || received[1] != 624 || received[2] != 72 || received[3] != 416 || received[4] != 16)
-            $fatal(1, "[ ERROR ] Final output count mismatch");
-        for (i = 0; i < 5; i = i + 1) begin
-            $display("[ INFO ] HANDSHAKE unit=%0d in=%0d out=%0d output_stall=%0d input_wait=%0d", i, sent[i], received[i], stalled[i], input_wait[i]);
-            if (stalled[i] == 0 || input_wait[i] == 0) $fatal(1, "[ ERROR ] Backpressure not exercised");
-        end
-        $display("[ PASS ] ALL TESTS PASSED");
-        $finish;
-    end
+    initial controller();
 endmodule

@@ -1,106 +1,79 @@
 @echo off
 setlocal EnableExtensions DisableDelayedExpansion
-
-rem ----------------------------------------------------------------
-rem init
-rem ----------------------------------------------------------------
-for %%I in ("%~dp0.") do set "ROOT=%%~fI"
-
-set "PATH_BASE_TB=%ROOT%\bottleneck\bench"
-set "CONFIG_GUI=0"
-set "EXIT_CODE=0"
-set "PATH_PUSHED=0"
-
-if "%~1"=="" ( goto error_args )
-
-set "TB_NAME=%~1"
-set "TB_PATH=%PATH_BASE_TB%\%TB_NAME%"
+set "ROOT=%~dp0"
+set "TB_PATH=%ROOT%bottleneck\bench\tb_core"
 set "PATH_LOG=%TB_PATH%\.log"
-set "TB_FILES=%TB_PATH%\%TB_NAME%.f"
-shift /1
+set "GUI=0"
+set "PUSHED=0"
+set "EXIT_CODE=0"
 
 :options
 if "%~1"=="" goto environment
-if /i "%~1"=="--gui" (
-    set "CONFIG_GUI=1"
-) else (
-    echo Usage: %~nx0 TB_NAME [--gui]
-    exit /b 2
+if /i "%~1"=="tb_core" (
+    shift
+    goto options
 )
-shift /1
-goto options
+if /i "%~1"=="--gui" (
+    set "GUI=1"
+    shift
+    goto options
+)
+echo Usage: %~nx0 [tb_core] [--gui]
+exit /b 2
 
-rem ----------------------------------------------------------------
-rem check environment
-rem ----------------------------------------------------------------
 :environment
+if not exist "%TB_PATH%\tb_core.f" goto failed
+for %%T in (xvlog.bat xelab.bat xsim.bat) do (
+    where %%T >nul 2>&1
+    if errorlevel 1 (
+        echo [ ERROR ] %%T not found. Add Vivado bin to PATH.
+        exit /b 1
+    )
+)
 if not exist "%PATH_LOG%" mkdir "%PATH_LOG%"
-
 pushd "%TB_PATH%"
-
-set "PATH_PUSHED=1"
+if errorlevel 1 goto failed
+set "PUSHED=1"
 type nul > "%PATH_LOG%\sources.prj"
-for /f "usebackq eol=# delims=" %%F in ("%TB_FILES%") do (
+for /f "usebackq eol=# delims=" %%F in ("tb_core.f") do (
+    if not exist "%%F" (
+        echo [ ERROR ] Source not found: %%F
+        set "EXIT_CODE=1"
+    )
     >> "%PATH_LOG%\sources.prj" echo sv work "%%~fF"
 )
 popd
-set "PATH_PUSHED=0"
-
+set "PUSHED=0"
+if "%EXIT_CODE%"=="1" goto failed
 pushd "%PATH_LOG%"
-if errorlevel 1 ( goto error_compile )
-set "PATH_PUSHED=1"
+if errorlevel 1 goto failed
+set "PUSHED=1"
+rem Invalidate an earlier pass before compiling the current sources.
+type nul > simulate.log
 
-echo ----------------------------------------------------------------
 echo [1/3] Compiling HDL...
-echo ----------------------------------------------------------------
-
-call xvlog.bat -prj sources.prj -i "%TB_PATH%" -log "%PATH_LOG%\compile.log"
-if errorlevel 1 ( goto error_compile )
-
-echo ----------------------------------------------------------------
-echo [2/3] Elaborating %TB_NAME%...
-echo ----------------------------------------------------------------
-
-call xelab.bat "%TB_NAME%" -s behav_tb -debug typical -log "%PATH_LOG%\elaborate.log"
-if errorlevel 1 ( goto error_elaborate )
-
-echo ----------------------------------------------------------------
-echo [3/3] Running behavioral simulation...
-echo ----------------------------------------------------------------
-call xsim.bat behav_tb -runall -log "%PATH_LOG%\simulate.log"
-if errorlevel 1 ( goto error_simulate )
-
-if "%CONFIG_GUI%"=="1" (
-    call xsim.bat behav_tb -gui -onfinish stop -runall -log "%PATH_LOG%\xsim_gui.log"
-    if errorlevel 1 ( goto error_simulate )
+call xvlog.bat -prj sources.prj -i "%TB_PATH%" -log compile.log
+if errorlevel 1 goto failed
+echo [2/3] Elaborating tb_core...
+call xelab.bat tb_core -s behav_tb -debug typical -log elaborate.log
+if errorlevel 1 goto failed
+echo [3/3] Running case1...
+if "%GUI%"=="1" (
+    call xsim.bat behav_tb -gui -onfinish stop -runall -log simulate.log
+) else (
+    call xsim.bat behav_tb -runall -log simulate.log
 )
-
+if errorlevel 1 goto failed
+rem XSim may return zero after a HDL fatal, so check the TB result as well.
+findstr /l /c:"Fatal:" simulate.log >nul
+if not errorlevel 1 goto failed
+findstr /l /c:"[ PASS ] ALL TESTS PASSED" simulate.log >nul
+if errorlevel 1 goto failed
 goto finish
 
-rem ----------------------------------------------------------------
-rem error
-rem ----------------------------------------------------------------
-
-:error_args
-echo [ ERROR ] Missing required arguments
-exit /b 1
-
-:error_compile
-echo [ ERROR ] Compilation failed. See "%PATH_LOG%\compile.log".
+:failed
+echo [ ERROR ] Simulation did not pass. See "%PATH_LOG%".
 set "EXIT_CODE=1"
-goto finish
-
-:error_elaborate
-echo [ ERROR ] Elaboration failed. See "%PATH_LOG%\elaborate.log".
-set "EXIT_CODE=1"
-goto finish
-
-:error_simulate
-echo [ ERROR ] Simulation failed. See "%PATH_LOG%\simulate.log".
-set "EXIT_CODE=1"
-goto finish
-
 :finish
-if "%PATH_PUSHED%"=="1" popd
+if "%PUSHED%"=="1" popd
 exit /b %EXIT_CODE%
-

@@ -1,4 +1,0 @@
-﻿Bottleneck simulation: 2026-11-04 10:00:15
-RTL: C:\Users\idec\Desktop\chohyunkeon\project\FPGA-bottleneck\bottleneck\rtl_dummy
-Running reference (log: C:\Users\idec\Desktop\chohyunkeon\project\FPGA-bottleneck\AI_workspace\run\logs\reference.log)
-FAIL: reference failed (exit 9009). See C:\Users\idec\Desktop\chohyunkeon\project\FPGA-bottleneck\AI_workspace\run\logs\reference.log
