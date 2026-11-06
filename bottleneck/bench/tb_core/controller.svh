@@ -66,57 +66,6 @@
     endtask
 
     // ------------------------------------
-    // phase1_setup
-    // ------------------------------------
-    task automatic phase1_setup;
-        begin
-            @(negedge clk);
-            mac_enable        = 1;
-            residual_enable   = 0;
-            relu_enable       = 1;
-            pooling_enable    = 0;
-            gap_enable        = 0;
-            mac_iteration     = 5'd8;
-            pooling_iteration = 5'd4;
-            gap_iteration     = 5'd9;
-        end
-    endtask
-
-    // ------------------------------------
-    // phase2_setup
-    // ------------------------------------
-    task automatic phase2_setup;
-        begin
-            @(negedge clk);
-            mac_enable        = 1;
-            residual_enable   = 0;
-            relu_enable       = 1;
-            pooling_enable    = 0;
-            gap_enable        = 0;
-            mac_iteration     = 5'd18;
-            pooling_iteration = 5'd4;
-            gap_iteration     = 5'd9;
-        end
-    endtask
-
-    // ------------------------------------
-    // phase3_setup
-    // ------------------------------------
-    task automatic phase3_setup;
-        begin
-            @(negedge clk);
-            mac_enable        = 1;
-            residual_enable   = 1;
-            relu_enable       = 1;
-            pooling_enable    = 1;
-            gap_enable        = 1;
-            mac_iteration     = 5'd2;
-            pooling_iteration = 5'd4;
-            gap_iteration     = 5'd9;
-        end
-    endtask
-
-    // ------------------------------------
     // core_run
     // ------------------------------------
     task automatic core_run(
@@ -130,7 +79,7 @@
         begin
             received   = 0;
             collecting = 1;
-            $display("[ INFO ] phase%0d scheduled %0d activation/kernel pairs", phase, input_words);
+            //$display("[ INFO ] phase%0d scheduled %0d activation/kernel pairs", phase, input_words);
 
             fork
                 begin

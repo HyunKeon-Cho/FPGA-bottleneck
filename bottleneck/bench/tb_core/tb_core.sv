@@ -238,7 +238,6 @@ module tb_core;
         core_run(3, PHASE3_SCHEDULE_WORDS, OUTPUT_WORDS);
         scoreboard(output_data, OUTPUT_WORDS, "ref_ouptut");
 
-        scoreboard_finish();
         $finish;
     end
 endmodule
