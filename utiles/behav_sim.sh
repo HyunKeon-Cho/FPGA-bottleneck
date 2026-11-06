@@ -60,13 +60,32 @@ run_tool xelab tb_core -s behav_tb -debug typical -log elaborate.log
 echo '------------------------------------'
 echo '[3/3] Running case1...'
 echo '------------------------------------'
-args=(behav_tb -runall -log simulate.log)
+args=(behav_tb -log simulate.log)
 
 # A response file preserves '=' through Windows batch wrappers.
 : > stream_args.f
 [[ -n "${INPUT_GAP:-}" ]] && printf -- '-testplusarg "input_gap=%s"\n' "$INPUT_GAP" >> stream_args.f
 [[ -s stream_args.f ]] && args+=(-f stream_args.f)
-if (( GUI )); then args+=(-gui -onfinish stop); fi
+if (( GUI )); then
+    # -runall performs "run all; quit" even when opening the GUI.
+    # Run through Tcl instead, leaving the simulator open at $finish.
+    cat > gui_run.tcl <<'TCL'
+log_wave -r /tb_core/*
+set wave_config [file normalize [file join [file dirname [info script]] .. tb_core.wcfg]]
+if {[file isfile $wave_config]} {
+    open_wave_config $wave_config
+} else {
+    add_wave /tb_core/clk /tb_core/nrst
+    add_wave /tb_core/mac_in_enable /tb_core/mac_in_data
+    add_wave /tb_core/mac_out_enable /tb_core/mac_out_data
+    add_wave /tb_core/gap_out_enable /tb_core/gap_out_data
+}
+run all
+TCL
+    args+=(-gui -onfinish stop -tclbatch gui_run.tcl)
+else
+    args+=(-runall)
+fi
 run_tool xsim "${args[@]}"
 if grep -Fq 'Fatal:' simulate.log || ! grep -Fq '[ PASS ] ALL TESTS PASSED' simulate.log; then
     echo "[ ERROR ] TB did not pass. See $PATH_LOG/simulate.log" >&2
