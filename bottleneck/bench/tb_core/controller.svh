@@ -6,8 +6,7 @@
     // ------------------------------------
     task automatic core_reset;
         begin
-            mac_in_valid        = 0;
-            residual_skip_valid = 0;
+            mac_in_enable       = 0;
             mac_enable          = 0;
             residual_enable     = 0;
             relu_enable         = 0;
@@ -33,35 +32,15 @@
                 @(negedge clk);
                 mac_in_data     = feature_buf[i];
                 mac_kernel_data = kernel_buf[i];
-                mac_in_valid    = 1;
-
-                @(posedge clk);
-                while (!mac_in_ready) @(posedge clk);
-
-                @(negedge clk);
-                mac_in_valid = 0;
+                mac_in_enable   = 1;
+                if (input_gap > 0) begin
+                    @(negedge clk);
+                    mac_in_enable = 0;
+                    repeat (input_gap-1) @(negedge clk);
+                end
             end
-        end
-    endtask
-
-    // ------------------------------------
-    // send_skip
-    // ------------------------------------
-    task automatic send_skip;
-        integer             i;
-
-        begin
-            for (i = 0; i < INPUT_WORDS; i = i + 1) begin
-                @(negedge clk);
-                residual_skip_data  = skip_buf[i];
-                residual_skip_valid = 1;
-
-                @(posedge clk);
-                while (!residual_skip_ready) @(posedge clk);
-
-                @(negedge clk);
-                residual_skip_valid = 0;
-            end
+            @(negedge clk);
+            mac_in_enable = 0;
         end
     endtask
 
@@ -79,27 +58,26 @@
         begin
             received   = 0;
             collecting = 1;
-            //$display("[ INFO ] phase%0d scheduled %0d activation/kernel pairs", phase, input_words);
 
             fork
                 begin
-                    fork
-                        send_mac(input_words);
-                        begin
-                            if (phase == 3) send_skip();
-                        end
-                    join
+                    send_mac(input_words);
 
                     @(negedge clk);
                     while (received < output_words) @(negedge clk);
-                    wait (!(mac_out_valid || residual_out_valid || relu_out_valid || pooling_out_valid || gap_out_valid));
+                    wait (!(mac_out_enable || residual_out_enable || relu_out_enable || pooling_out_enable || gap_out_enable));
+                    // All modules have a registered input and output stage.
+                    // Drain the fixed latency even across bubbles between outputs.
+                    repeat (12) @(negedge clk);
                     collecting = 0;
                 end
                 begin
                     while (collecting) begin
                         @(posedge clk);
-                        if (collecting && output_valid && output_ready) begin
-                            output_data[received] = output_word;
+                        if (collecting && gap_out_enable) begin
+                            if (received >= output_words)
+                                $fatal(1, "[ ERROR ] phase%0d extra output", phase);
+                            output_data[received] = gap_out_data;
                             received              = received + 1;
                         end
                     end

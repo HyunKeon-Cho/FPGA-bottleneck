@@ -69,3 +69,10 @@
 
 - [TB bottleneck structure & flow](docs/bottleneck_flow.md)
 - [input model & data arrange rules](docs/appendix.md)
+
+# Update Log
+
+- 2026.11.06 15:00
+    1. core 모듈의 interface를 enable 단일 구성으로 수정
+    2. (1)에 맞추어 tb_core.sv 및 하위 모듈 수정
+    3. VScode 기반 

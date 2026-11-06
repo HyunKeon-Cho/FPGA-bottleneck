@@ -46,7 +46,7 @@ flowchart LR
 ```text
 배치 완료 → 전송·수집 완료 → pipeline drain → 검증 → 다음 배치
                               ↑
-output_data[i++] ← output_word  if output_valid && output_ready
+output_data[i++] ← gap_out_data  if gap_out_enable
 
 feature / kernel             : 원본 보존
 feature_buf / kernel_buf     : 공용 MAC 입력
@@ -54,5 +54,9 @@ skip_buf                     : Phase3 skip
 output_data                  : 현재 phase 출력
 모든 배열 용량               : 1296
 ```
+
+연산 모듈 사이는 `data + out_enable`로 연결합니다. 각 모듈은 같은 클럭에서
+입력 수집 task와 이전 결과 출력 task를 실행합니다. TB는 GAP의
+`out_enable=1`인 클럭마다 결과를 바로 저장하며, ready와 출력 FIFO는 사용하지 않습니다.
 
 [배치·인터페이스 상세](appendix.md) · [실행 코드](../bottleneck/bench/tb_core/tb_core.sv)

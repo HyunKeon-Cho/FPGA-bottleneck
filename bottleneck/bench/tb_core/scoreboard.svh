@@ -57,7 +57,7 @@
                 actual_value = actual_buf[i];
 
                 if (actual_value !== global_expected[i])
-                    $display("[ ERROR ] phase%0d index=%0d actual=%0d expected=%0d", phase, i,
+                    $fatal(1, "[ ERROR ] phase%0d index=%0d actual=%0d expected=%0d", phase, i,
                            $signed(actual_value), $signed(global_expected[i]));
 
                 $fdisplay(fd, "%04h", actual_value);
@@ -98,10 +98,12 @@
         begin
             $fclose(global_report_file);
             global_report_file = 0;
+            if (scoreboard_calls != PHASE_COUNT)
+                $fatal(1, "[ ERROR ] Missing phase scoreboard calls");
             if (error_phase_cnt == 0) begin
                 $display("[ PASS ] All phases passed SNR check");
             end else begin
-                $display(1, "[ FALI ] Simulation failed due to SNR check failure");
+                $fatal(1, "[ FAIL ] Simulation failed due to SNR check failure");
             end
         end
     endtask

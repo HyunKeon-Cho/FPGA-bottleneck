@@ -2,28 +2,15 @@
 `define PS_SVH
 
     // ------------------------------------
-    // Transfer State
+    // Input Stream Timing
     // ------------------------------------
-    integer             cycle = 0;
-    reg [31:0]          random_state = 32'h5eed1234;
+    integer             input_gap = 0;
 
-    // ------------------------------------
-    // Backpressure
-    // ------------------------------------
-    initial if ($value$plusargs("ready_seed=%d", random_state))
-        $display("[ INFO ] ready seed=%0d", random_state);
-
-    always @(negedge clk) begin
-        if (!nrst) output_ready = 0;
-        else begin
-            random_state  = (random_state >> 1) ^ (32'hd0000001 & {32{random_state[0]}});
-            output_ready = (cycle % 19 >= 6) && random_state[0];
-        end
-    end
-
-    always @(posedge clk) begin
-        if (!nrst) cycle <= 0;
-        else cycle <= cycle + 1;
+    initial begin
+        if ($value$plusargs("input_gap=%d", input_gap))
+            $display("[ INFO ] input gap=%0d", input_gap);
+        if (input_gap < 0)
+            $fatal(1, "[ ERROR ] Negative input gap");
     end
 
     // ------------------------------------

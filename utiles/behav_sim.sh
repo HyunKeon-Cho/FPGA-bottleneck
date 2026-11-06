@@ -46,12 +46,26 @@ mkdir -p -- "$PATH_LOG"
 ) > "$PATH_LOG/sources.prj"
 cd -- "$PATH_LOG"
 : > simulate.log
+
+echo '------------------------------------'
 echo '[1/3] Compiling HDL...'
+echo '------------------------------------'
 run_tool xvlog -prj sources.prj -i "$(tool_path "$TB_PATH")" -log compile.log
+
+echo '------------------------------------'
 echo '[2/3] Elaborating tb_core...'
+echo '------------------------------------'
 run_tool xelab tb_core -s behav_tb -debug typical -log elaborate.log
+
+echo '------------------------------------'
 echo '[3/3] Running case1...'
+echo '------------------------------------'
 args=(behav_tb -runall -log simulate.log)
+
+# A response file preserves '=' through Windows batch wrappers.
+: > stream_args.f
+[[ -n "${INPUT_GAP:-}" ]] && printf -- '-testplusarg "input_gap=%s"\n' "$INPUT_GAP" >> stream_args.f
+[[ -s stream_args.f ]] && args+=(-f stream_args.f)
 if (( GUI )); then args+=(-gui -onfinish stop); fi
 run_tool xsim "${args[@]}"
 if grep -Fq 'Fatal:' simulate.log || ! grep -Fq '[ PASS ] ALL TESTS PASSED' simulate.log; then

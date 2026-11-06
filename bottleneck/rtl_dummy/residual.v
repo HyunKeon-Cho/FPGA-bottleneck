@@ -1,53 +1,63 @@
 `timescale 1ns/1ps
+// Same-clock, valid-only stream. Configuration stays stable until drained.
+// collect_input and handle_output run every clock; registers separate stages.
 module residual #(parameter integer BITWIDTH = 16)(
     input wire clk,
     input wire nrst,
     input wire enable,
-    input wire in_valid,
-    output wire in_ready,
+    input wire in_enable,
     input wire signed [BITWIDTH-1:0] in_data,
-    input wire skip_valid,
-    output wire skip_ready,
     input wire signed [BITWIDTH-1:0] skip_data,
-    output reg out_valid,
-    input wire out_ready,
+    output reg out_enable,
     output reg signed [BITWIDTH-1:0] out_data
 );
-reg signed [BITWIDTH-1:0] main_buffer, skip_buffer;
-reg have_main, have_skip;
-assign in_ready = nrst && !out_valid && !have_main;
-assign skip_ready = nrst && enable && !out_valid && !have_skip;
 
-function automatic signed [15:0] saturate16(input signed [63:0] value);
-    if (value > 32767) saturate16 = 16'sh7fff;
-    else if (value < -32768) saturate16 = 16'sh8000;
-    else saturate16 = value[15:0];
-endfunction
+    // ------------------------------------
+    // Fixed-point arithmetic
+    // ------------------------------------
+    function automatic signed [BITWIDTH-1:0] saturate(input signed [63:0] value);
+        reg signed [63:0] limit;
+        begin
+            limit = 64'sd1 <<< (BITWIDTH-1);
+            if (value >= limit) saturate = limit - 1;
+            else if (value < -limit) saturate = -limit;
+            else saturate = value;
+        end
+    endfunction
 
-task automatic compute;
-    reg signed [63:0] total;
-    begin
-        if (enable) begin
-            total = $signed(main_buffer);
-            total = total + $signed(skip_buffer);
-            out_data <= saturate16(total);
-        end else out_data <= main_buffer;
-        out_valid <= 1;
-        have_main = 0;
-        have_skip = 0;
+    reg pending_enable;
+    reg signed [BITWIDTH-1:0] pending_data;
+    // skip_data must address the same feature as in_data on this enabled clock.
+    wire signed [63:0] main_extended = $signed(in_data);
+    wire signed [63:0] skip_extended = $signed(skip_data);
+
+    task automatic collect_input;
+        begin
+            pending_enable <= in_enable;
+            if (in_enable)
+                pending_data <= enable ? saturate(main_extended + skip_extended) : in_data;
+        end
+    endtask
+
+    // ------------------------------------
+    // Output stage (reads the previous clock's pending result)
+    // ------------------------------------
+    task automatic handle_output;
+        begin
+            out_enable <= pending_enable;
+            if (pending_enable) out_data <= pending_data;
+        end
+    endtask
+
+    always @(posedge clk or negedge nrst) begin
+        if (!nrst) begin
+            pending_enable <= 0;
+            pending_data <= 0;
+            out_enable <= 0;
+            out_data <= 0;
+        end else begin
+            collect_input();
+            handle_output();
+        end
     end
-endtask
-
-always @(posedge clk or negedge nrst) begin
-    if (!nrst) begin
-        out_valid <= 0; out_data <= 0;
-        main_buffer = 0; skip_buffer = 0;
-        have_main = 0; have_skip = 0;
-    end else begin
-        if (out_valid && out_ready) out_valid <= 0;
-        if (in_valid && in_ready) begin main_buffer = in_data; have_main = 1; end
-        if (skip_valid && skip_ready) begin skip_buffer = skip_data; have_skip = 1; end
-        if (have_main && (!enable || have_skip)) compute();
-    end
-end
 endmodule

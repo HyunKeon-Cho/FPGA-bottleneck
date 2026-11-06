@@ -1,7 +1,7 @@
 # bench
 tb_core.sv
 
-# rtl
+# task-based streaming models
 ../../rtl_dummy/mac.v
 ../../rtl_dummy/residual.v
 ../../rtl_dummy/relu.v

@@ -60,24 +60,32 @@ Phase3 입력  : channel → window 행·열 → 좌상·우상·좌하·우하
 정답 파일 ─×→ 입력 배치
 ```
 
-## Handshake
+## 모듈 간 스트림
 
 ```text
-negedge clk: TB 입력·sink ready 구동
-posedge clk: valid && ready일 때만 전달
+negedge clk: TB 입력 구동
+posedge clk: 내부 in_enable=1이면 입력 수신 (ready 없음)
+out_enable=1인 매 클럭이 독립적인 출력 데이터 한 개
+
+각 모듈: collect_input() + handle_output(), 동일 클럭에서 실행
+입력 단계 pending 레지스터 → 출력 레지스터 (nonblocking 할당)
+이전 결과 출력과 다음 입력 수집을 병행, 입력 bubble은 카운터를 진행시키지 않음
+설정은 phase 시작부터 pipeline drain까지 유지
 
 MAC/Pool/GAP (iteration: 5-bit, N=1..31):
-    N개 수집 → enable ? 결과 1개 : 입력 N개 그대로
-    출력 전부 전달 → 다음 묶음 수집
-
-Residual:
-    main·skip 독립 수신 → 둘 다 준비 → 포화 합산
-    disable → main 그대로, skip_ready=0
-
+    enable=1: 유효 입력 N개마다 결과 1개
+    enable=0: 유효 입력마다 원본 1개 통과 (N개 묶음 저장 없음)
+MAC: 입력 한 개당 곱셈 한 번·누산 한 번
+Residual: in_enable 클럭에 main과 같은 위치의 skip_data를 함께 사용
+          TB는 Conv3 출력 한 개마다 skip_buf 인덱스를 증가
 ReLU: enable ? max(0, input) : input
 Pool: signed max(N개)
-GAP : rounded mean(N개)
-출력 stall: valid·data 유지
+GAP : rounded mean(N개), 나눗셈은 출력 단계에서 수행
+
+GAP → TB output_data[] 직접 저장
+gap_out_enable=1인 posedge마다 gap_out_data 수집 (ready·출력 FIFO 없음)
+초과 출력·2ms timeout → Fatal
+물리적인 합성·자원·타이밍은 별도 검증 필요
 ```
 
 ## 수치 · 판정
@@ -109,7 +117,7 @@ scoreboard(actual_buf, size, reference_name):
 | Phase3 | ref_ouptut.txt, ref_ouptut_float.txt |
 
 `data/: 8개 · .log/: 실행 결과 · 파일 열기/형식/개수 오류 → Fatal`
-`중간 reset·설정값/용량/timeout 방어·FPGA 자원/타이밍 검증 제외`
+`CNN TB는 초기 reset만 사용 · 모듈 회귀검증은 중간 reset 포함 · FPGA 자원/타이밍 검증 제외`
 
 ## 코드 스타일
 

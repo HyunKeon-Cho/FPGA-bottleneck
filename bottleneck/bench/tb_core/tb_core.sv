@@ -23,27 +23,23 @@ module tb_core;
     // ------------------------------------
     reg                        mac_enable = 0;
     reg [4:0]                  mac_iteration = 1;
-    reg                        mac_in_valid = 0;
-    wire                       mac_in_ready;
+    reg                        mac_in_enable = 0;
     reg signed [BITWIDTH-1:0]  mac_in_data = 0;
     reg signed [BITWIDTH-1:0]  mac_kernel_data = 0;
-    wire                       mac_out_valid;
-    wire                       mac_out_ready;
+    wire                       mac_out_enable;
     wire signed [BITWIDTH-1:0] mac_out_data;
 
     mac #(
-        .BITWIDTH (BITWIDTH)
+        .BITWIDTH    (BITWIDTH)
     ) u_mac (
         .clk         (clk),
         .nrst        (nrst),
         .enable      (mac_enable),
         .iteration   (mac_iteration),
-        .in_valid    (mac_in_valid),
-        .in_ready    (mac_in_ready),
+        .in_enable   (mac_in_enable),
         .in_data     (mac_in_data),
         .kernel_data (mac_kernel_data),
-        .out_valid   (mac_out_valid),
-        .out_ready   (mac_out_ready),
+        .out_enable  (mac_out_enable),
         .out_data    (mac_out_data)
     );
 
@@ -51,56 +47,45 @@ module tb_core;
     // Residual
     // ------------------------------------
     reg                        residual_enable = 0;
-    wire                       residual_in_valid;
-    wire                       residual_in_ready;
+    wire                       residual_in_enable;
     wire signed [BITWIDTH-1:0] residual_in_data;
-    reg                        residual_skip_valid = 0;
-    wire                       residual_skip_ready;
-    reg signed [BITWIDTH-1:0]  residual_skip_data = 0;
-    wire                       residual_out_valid;
-    wire                       residual_out_ready;
+    wire signed [BITWIDTH-1:0] residual_skip_data;
+    integer skip_index = 0;
+    wire                       residual_out_enable;
     wire signed [BITWIDTH-1:0] residual_out_data;
 
     residual #(
-        .BITWIDTH (BITWIDTH)
+        .BITWIDTH    (BITWIDTH)
     ) u_residual (
-        .clk        (clk),
-        .nrst       (nrst),
-        .enable     (residual_enable),
-        .in_valid   (residual_in_valid),
-        .in_ready   (residual_in_ready),
-        .in_data    (residual_in_data),
-        .skip_valid (residual_skip_valid),
-        .skip_ready (residual_skip_ready),
-        .skip_data  (residual_skip_data),
-        .out_valid  (residual_out_valid),
-        .out_ready  (residual_out_ready),
-        .out_data   (residual_out_data)
+        .clk         (clk),
+        .nrst        (nrst),
+        .enable      (residual_enable),
+        .in_enable   (residual_in_enable),
+        .in_data     (residual_in_data),
+        .skip_data   (residual_skip_data),
+        .out_enable  (residual_out_enable),
+        .out_data    (residual_out_data)
     );
 
     // ------------------------------------
     // ReLU
     // ------------------------------------
     reg                        relu_enable = 0;
-    wire                       relu_in_valid;
-    wire                       relu_in_ready;
+    wire                       relu_in_enable;
     wire signed [BITWIDTH-1:0] relu_in_data;
-    wire                       relu_out_valid;
-    wire                       relu_out_ready;
+    wire                       relu_out_enable;
     wire signed [BITWIDTH-1:0] relu_out_data;
 
     relu #(
-        .BITWIDTH (BITWIDTH)
+        .BITWIDTH    (BITWIDTH)
     ) u_relu (
-        .clk       (clk),
-        .nrst      (nrst),
-        .enable    (relu_enable),
-        .in_valid  (relu_in_valid),
-        .in_ready  (relu_in_ready),
-        .in_data   (relu_in_data),
-        .out_valid (relu_out_valid),
-        .out_ready (relu_out_ready),
-        .out_data  (relu_out_data)
+        .clk         (clk),
+        .nrst        (nrst),
+        .enable      (relu_enable),
+        .in_enable   (relu_in_enable),
+        .in_data     (relu_in_data),
+        .out_enable  (relu_out_enable),
+        .out_data    (relu_out_data)
     );
 
     // ------------------------------------
@@ -108,26 +93,22 @@ module tb_core;
     // ------------------------------------
     reg                        pooling_enable    = 0;
     reg [4:0]                  pooling_iteration = 4;
-    wire                       pooling_in_valid;
-    wire                       pooling_in_ready;
+    wire                       pooling_in_enable;
     wire signed [BITWIDTH-1:0] pooling_in_data;
-    wire                       pooling_out_valid;
-    wire                       pooling_out_ready;
+    wire                       pooling_out_enable;
     wire signed [BITWIDTH-1:0] pooling_out_data;
 
     pooling #(
-        .BITWIDTH (BITWIDTH)
+        .BITWIDTH    (BITWIDTH)
     ) u_pooling (
-        .clk       (clk),
-        .nrst      (nrst),
-        .enable    (pooling_enable),
-        .iteration (pooling_iteration),
-        .in_valid  (pooling_in_valid),
-        .in_ready  (pooling_in_ready),
-        .in_data   (pooling_in_data),
-        .out_valid (pooling_out_valid),
-        .out_ready (pooling_out_ready),
-        .out_data  (pooling_out_data)
+        .clk         (clk),
+        .nrst        (nrst),
+        .enable      (pooling_enable),
+        .iteration   (pooling_iteration),
+        .in_enable   (pooling_in_enable),
+        .in_data     (pooling_in_data),
+        .out_enable  (pooling_out_enable),
+        .out_data    (pooling_out_data)
     );
 
     // ------------------------------------
@@ -135,46 +116,38 @@ module tb_core;
     // ------------------------------------
     reg                        gap_enable    = 0;
     reg [4:0]                  gap_iteration = 9;
-    wire                       gap_in_valid;
-    wire                       gap_in_ready;
+    wire                       gap_in_enable;
     wire signed [BITWIDTH-1:0] gap_in_data;
-    wire                       gap_out_valid;
-    wire                       gap_out_ready;
+    wire                       gap_out_enable;
     wire signed [BITWIDTH-1:0] gap_out_data;
 
     general_average_pooling #(
-        .BITWIDTH (BITWIDTH)
+        .BITWIDTH    (BITWIDTH)
     ) u_gap (
-        .clk       (clk),
-        .nrst      (nrst),
-        .enable    (gap_enable),
-        .iteration (gap_iteration),
-        .in_valid  (gap_in_valid),
-        .in_ready  (gap_in_ready),
-        .in_data   (gap_in_data),
-        .out_valid (gap_out_valid),
-        .out_ready (gap_out_ready),
-        .out_data  (gap_out_data)
+        .clk         (clk),
+        .nrst        (nrst),
+        .enable      (gap_enable),
+        .iteration   (gap_iteration),
+        .in_enable   (gap_in_enable),
+        .in_data     (gap_in_data),
+        .out_enable  (gap_out_enable),
+        .out_data    (gap_out_data)
     );
 
     // ------------------------------------
     // Pipeline Connections
     // ------------------------------------
-    assign mac_out_ready      = residual_in_ready;
 
-    assign residual_in_valid  = mac_out_valid;
-    assign residual_out_ready = relu_in_ready;
+    assign residual_in_enable  = mac_out_enable;
     assign residual_in_data   = mac_out_data;
 
-    assign relu_in_valid      = residual_out_valid;
-    assign relu_out_ready     = pooling_in_ready;
+    assign relu_in_enable      = residual_out_enable;
     assign relu_in_data       = residual_out_data;
 
-    assign pooling_in_valid   = relu_out_valid;
-    assign pooling_out_ready  = gap_in_ready;
+    assign pooling_in_enable   = relu_out_enable;
     assign pooling_in_data    = relu_out_data;
 
-    assign gap_in_valid       = pooling_out_valid;
+    assign gap_in_enable       = pooling_out_enable;
     assign gap_in_data        = pooling_out_data;
 
     // ------------------------------------
@@ -197,15 +170,22 @@ module tb_core;
     reg signed [BITWIDTH-1:0] output_data [0:BUFFER_SIZE-1];
 
     // ------------------------------------
-    // Core Output Interface
+    // Residual Skip Source
     // ------------------------------------
-    wire                       output_valid;
-    reg                        output_ready = 0;
-    wire signed [BITWIDTH-1:0] output_word;
+    // The scheduled skip array has exactly the Conv3 output order.
+    assign residual_skip_data = (skip_index < INPUT_WORDS) ? skip_buf[skip_index] : 0;
+    always @(posedge clk or negedge nrst) begin
+        if (!nrst) skip_index <= 0;
+        else if (residual_enable && mac_out_enable) begin
+            if (skip_index >= INPUT_WORDS) $fatal(1, "[ ERROR ] Extra residual input");
+            skip_index <= skip_index + 1;
+        end
+    end
 
-    assign output_valid  = gap_out_valid;
-    assign output_word   = gap_out_data;
-    assign gap_out_ready = output_ready;
+    initial begin
+        #2000000;
+        $fatal(1, "[ ERROR ] Simulation timeout");
+    end
 
     // ------------------------------------
     // TB Tasks
@@ -238,6 +218,8 @@ module tb_core;
         core_run(3, PHASE3_SCHEDULE_WORDS, OUTPUT_WORDS);
         scoreboard(output_data, OUTPUT_WORDS, "ref_ouptut");
 
+        scoreboard_finish();
+        $display("[ PASS ] ALL TESTS PASSED");
         $finish;
     end
 endmodule
