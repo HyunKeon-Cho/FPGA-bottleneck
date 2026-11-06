@@ -13,8 +13,6 @@
 ### Testbench 구성
 - bottleneck/bench/tb_core/[tb_core.v](bottleneck/bench/tb_core/tb_core.v)
     - rtl_dummy들을 연결하고, tb 수행
-- bottleneck/bench/tb_core/[embedded_controller.v](bottleneck/bench/tb_core/embedded_controller.v)
-    - 준비된 goldden I/O data arrange
 
 ### 참고
 
